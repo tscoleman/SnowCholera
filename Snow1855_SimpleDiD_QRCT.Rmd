@@ -1,0 +1,254 @@
+---
+title: "John Snow Project - Simple DiD"
+author: "[Thomas Coleman](http://www.hilerun.org/econ)"
+output: html_notebook
+---
+# Simple Difference in Differences & Quasi Randomized Comparison
+
+#### See my working paper at https://papers.ssrn.com/abstract=3262234 and [John Snow project website](http://www.hilerun.org/econ/papers/snow)
+
+#### This worksheet is licensed under the [BSD 2-Clause License](https://opensource.org/licenses/BSD-2-Clause)
+
+### Introduction
+
+This worksheet performs simple calculations using Snow's 1855 data:
+
+* A simple difference-in-differences table comparing mortality rates across regions and across time. (Snow compared counts in Table XII but for some reasons did not then convert to mortality rates.)
+
+* A quasi randomised comparison of mortality rates per household which Snow showed in his Table IX. This compares Southwark-supplied versus Lambeth-supplied customers but at a highly aggregated level (the full south London area).
+
+* A simple extension of Snow's Table IX using imputed housing and popuation for comparing only the sub-districts jointly supplied by Southwark & Vauxhall and Lambeth. 
+
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+rm(list=ls())    # starts a fresh workspace
+#
+library(knitr)
+options(scipen=5)
+# Read in the data
+tablevii <- read.csv(file="Snow1855_TableVII.csv",
+  header=TRUE, sep=",", skip=5,comment.char="#")
+
+tableviii <- read.csv(file="Snow1855_TableVIII.csv",
+  header=TRUE, sep=",", skip=5,comment.char="#")
+
+tableix <- read.csv(file="Snow1855_TableIX.csv",
+  header=TRUE, sep=",", skip=5,comment.char="#")
+
+tablexii <- read.csv(file="Snow1855_TableXII.csv",
+  header=TRUE, sep=",", skip=5,comment.char="#")
+
+```
+
+###Comparing 1849 to 1854 rates
+
+In Table XII Snow sub-totals deaths by Southwark-only ("first 12, jointly-supplied", "next 16 and Lambeth-only", "last 4 sub-districts"). The comparison can be made more clear by comparing *rates* rather than counts. 
+
+The code here subsets and sums across sub-districts to get the three "regions": 
+
+* Southwark & Vuaxhall supplied ("first 12")
+* Jointly-supplied (Southwark and Lambeth, "next 16")
+* Lambeth-only ("last 4")
+
+Population is from Table VIII, counts from Table XII
+
+The 'treatment' of changed water supply was applied in 1852, partially to joint "next 16" 'SouthwarkVauxhall_Lambeth' customers and not at all to "first 12" 'SouthwarkVauxhall' customers. We cannot use 'Lambeth' customers' because they weren't supplied by Lambeth in 1849.
+
+
+```{r results='asis'}
+# Subset and sum populations
+popSouthwarkVauxhall <- sum(subset(tableviii,supplier=="SouthwarkVauxhall")[,2])
+popSouthwarkVauxhall_Lambeth <- sum(subset(tableviii,supplier=="SouthwarkVauxhall_Lambeth")[,2])
+popLambeth <- sum(subset(tableviii,supplier=="Lambeth")[,2])
+pop1851 <- c(popSouthwarkVauxhall,popSouthwarkVauxhall_Lambeth,popLambeth)
+# Create array to hold counts
+comparecounts1849_1854 <- array(0,dim=c(3,2))
+colnames(comparecounts1849_1854) <- c("1849","1854")
+rownames(comparecounts1849_1854) <- c("first 12 Southwark-only","next 16 Jointly-supplied","last 4 Lambeth")
+# Create array to hold rates
+compare1849_1854 <- array(0,dim=c(3,2))
+colnames(compare1849_1854) <- c("1849","1854")
+rownames(compare1849_1854) <- c("first 12 Southwark-only","next 16 Jointly-supplied","last 4 Lambeth")
+# Fill in arrays for counts and rates
+x1 <- subset(tablexii,supplier=="first12")
+comparecounts1849_1854[1,] <- data.matrix(x1[2:3])
+compare1849_1854[1,] <- data.matrix(10000*x1[2:3]/pop1851[1])
+x1 <- subset(tablexii,supplier=="next16")
+comparecounts1849_1854[2,] <- data.matrix(x1[2:3])
+compare1849_1854[2,] <- data.matrix(10000*x1[2:3]/pop1851[2])
+x1 <- subset(tablexii,supplier=="last4")
+comparecounts1849_1854[3,] <- data.matrix(x1[2:3])
+compare1849_1854[3,] <- data.matrix(10000*x1[2:3]/pop1851[3])
+#
+kable(comparecounts1849_1854, caption = "Mortality (number of deaths)",format='pandoc')
+kable(compare1849_1854, digits=2, caption = "Mortality (rate per 10,000)",format='pandoc')
+
+```
+
+###Comparing as Difference-in-Differences - Levels and Logs
+
+Our goal is to measure the impact of clean water (the "treatment") on mortality. We have variation across both time (1849 versus 1854) and across regions (the "first 12" Southwark-supplied versus the "next 16" jointly-supplied sub-districts). The difference in rates across columns (difference across time) controls for differences in the 1849 versus 1854 epidemic rates. The difference across rows ("first 12" versus "next 16" sub-districts) controls for differences across regions. 
+
+Basically, we are saying that the mortality rate written as an equation is:
+
+$Rate = \mu + \delta 54*I(54) + \gamma*I(joint) + \beta*I(54)*I(joint)$
+
+* an overall constant ($\mu$)
+* a difference for 1854 ($\delta54$) 
+* a difference for joint "next 16" region ($\gamma$)
+* an interaction for 1854 and joint ($\beta$)
+
+Laying this out in table form it looks like:
+
+
+| Sub-districts | 1849 Mortality (rate) |  1854 Mortality (rate) | Diff 1854 less 1849 |
+| --------------------- |  --------------------- | --------------------- |  --------------------- |
+|First 12 Southwark-supplied | $\mu$ | $\mu + \delta 54$ | $\delta 54$  |
+|Next 16 jointly-supplied | $\mu + \gamma$ | $\mu + \delta 54 + \gamma + \beta$ | $\delta 54 + \beta$  |
+|Diff next-16 less first-12 | $\gamma$ | $\gamma + \beta$ | $\beta$  |
+
+The resulting bottom-right corner ($\beta$) shows the effect of treatment, controlled for time (1849 versus 1854) and region ("first 12" versus joint "next 16") effects. The following code produces this table in both level (straight mortality per 10,000) and in logarithmic. For various reasons we often want to use logs, which measures differences in ration terms. (remember that changes in logs is roughly percent change - exp(ch logs) = ratio change)
+
+
+```{r}
+# Do diff-in-diffs (in levels) for Southwark-only vs Jointly-supplied
+diff_in_diffs_Level <- array(0,dim=c(3,3))
+diff_in_diffs_Level[1:2,1:2] <- compare1849_1854[1:2,] 
+# Difference across columns
+diff_in_diffs_Level[1:2,3] <- diff_in_diffs_Level[1:2,2] - diff_in_diffs_Level[1:2,1]
+diff_in_diffs_Level[3,] <- diff_in_diffs_Level[2,] - diff_in_diffs_Level[1,]
+colnames(diff_in_diffs_Level) <- c("level 1849","level 1854","col diffs")
+rownames(diff_in_diffs_Level) <- c("first 12 Southwark-only","next 16 Jointly-supplied","row diffs")
+# Now do it in logs
+diff_in_diffs_Log <- array(0,dim=c(3,3))
+diff_in_diffs_Log[1:2,1:2] <- log(compare1849_1854[1:2,] / 10000)
+# Difference across columns
+diff_in_diffs_Log[1:2,3] <- diff_in_diffs_Log[1:2,2] - diff_in_diffs_Log[1:2,1]
+diff_in_diffs_Log[3,] <- diff_in_diffs_Log[2,] - diff_in_diffs_Log[1,]
+colnames(diff_in_diffs_Log) <- c("log 1849","log 1854","col diffs")
+rownames(diff_in_diffs_Log) <- c("first 12 Southwark-only","next 16 Jointly-supplied","row diffs")
+#
+kable(diff_in_diffs_Level,digits=2,caption="Diff-in-Diffs, Levels (rate per 10,000)",format='pandoc')
+kable(diff_in_diffs_Log,digits=4,caption="Diff-in-Diffs, Logs",format='pandoc')
+
+```
+
+Clean water effect in ratio terms - Expressed as decrease (Southwark -> Lambeth) and increase (Lambeth -> Southwark): `r round(c(exp(diff_in_diffs_Log[3,3]),exp(-diff_in_diffs_Log[3,3])),3)`.
+
+
+### Quasi-Randomized Comparison: Southwark & Vauxhall versus Lambeth Customers
+
+For a direct comparison of Southwark & Vauxhall versus Lambeth customers, Snow needed more than just the aggregate death counts from the Registrar-General: "All that was required [for direct comparison] was to learn the supply of water to each individual house where a fatal attack of cholera might occur" (Snow, 1855, p. 75) Snow was the father of "shoe-leather epidemiology" and he visited every household to determine the water supply himself. (This is a wonderful story and Snow tells it on page 76 and following. He had assistance from Mr. John Joseph Whiting, L.A.C for the "first 12" Southwark-only sub-districts since some houses were supplied by pump-wells instead of the Southwark & Vauxhall Company.) 
+
+In Table VIII Snow reports the deaths assigned to water supply (Soutwhark & Vauxhal Company, Lambeth Company, Other (e.g. pump-wells)) for the first seven weeks of the 1854 epidemic (ending 26th August). To appropriately compare mortality across the suppliers Snow needed the population-at-risk. The best he could do (in his 1855 publication) was houses for the whole region: a report to Parliament showed the number of houses supplied by each company, not split out by sub-district (see Snow 1855 p. 78). 
+
+These data allowed a direct comparison between Southwark versus Lambeth customers, but only at the aggregate level, summing across all sub-districts. Snow reports this in Table IX. 
+
+
+```{r}
+tableix
+```
+
+We can actually do a little better. We can impute the approximate number of houses (and population) separately for the "first 12" Soutwhark-supplied sub-districts versus the "next 16" jointly-supplied sub-districts. Customers (houses) are mixed within the jointly-supplied sub-districts so focusing the comparison on those 16 sub-districts is a more precise comparison of mortality between the two suppliers.
+
+First, we need to approximate the total number of houses in the different regions, which we do by assuming that the housing density (people per house) is constant across all sub-districts. The overall density is `r round((popSouthwarkVauxhall+popSouthwarkVauxhall_Lambeth+popLambeth) / (tableix[1,2]+tableix[2,2]),2)`. We then distribute the total houses (`r tableix[1,2]+tableix[2,2]` across the "first-12", "next-12" and "last-4":
+
+```{r}
+tothouses <- (tableix[1,2]+tableix[2,2])
+popperhouse <- (popSouthwarkVauxhall+popSouthwarkVauxhall_Lambeth+popLambeth) / tothouses
+houses <- pop1851 / popperhouse
+houses <- as.matrix(houses,nrow=1,ncol=3)
+rownames(houses) <- c("first-12","next-16 joint","last-4")
+colnames(houses) <- "imputed houses"
+kable(houses,digits=2, format.args=list(big.mark=","))
+```
+
+
+
+The trick we are using is that the "first 12" sub-districts are supplied by only Southwark & Vauxhall, so all those `r round(houses[1],0)` houses are supplied by Southwark & Vauxhall. Similarly for the `r round(houses[3],2)` houses in the "last-4" supplied by Lambeth. We can then back out the houses in the jointly-supplied "next-16". Finally we can apply the housing density to approximate population.  
+
+| Supplier | first-12 sub-dist | next-16 sub-dist | last-4 sub-dist | All sub-dist |
+| --------------------- |  --------------------- | --------------------- |  --------------------- | --------------------- |
+|Southwark&Vauxhall supply | imputed from below | imputed from sides | -  | original data |
+|Lambeth supply | - | imputed from sides | imputed from below  | original data |
+|Both companies | calc from pop | calc from pop | calc from pop  | original data |
+
+The equations we are using are:
+
+*   houses(supplier=Southwark) = houses(supplier=Southwark,region=first-12 Southwark-only) + houses(supplier=Southwark,region=next-16 joint)
+*   houses(supplier=Lambeth) = houses(supplier=Lambeth,region=joint) + houses(supplier=Lambeth,region=last-4 Lambeth only)
+
+These two pieces of data are supplied by Snow in Table IX. We need to use our approximation for:
+
+*   houses(supplier=Southwark,region=first-12) ~= popSouthwarkVauxhall / popperhouse
+*   houses(supplier=Lambeth,region=last-4) ~= popLambeth / popperhouse
+
+```{r}
+housesbyarea <- array(0,dim=c(4,4))
+rownames(housesbyarea) <- c("Southwark supply","Lambeth supply","Southwark+Lambeth","Total")
+colnames(housesbyarea) <- c("first-12","next-16 joint","last-4","Total")
+housesbyarea[1,1] <- houses[1]       # In the first-12 area all houses are Southwark: houses(supplier=Southwark,region=Southwark only)
+housesbyarea[2,3] <- houses[3]       # In the last-4 area all houses are Lambeth: houses(supplier=Lambeth,region=Lambeth only)
+housesbyarea[1,2] <- tableix[1,2] - houses[1]  # Southwark houses not in the first-12 are in the joint area
+# And similarly for houses supplied by Lambeth in the joint area
+housesbyarea[2,2] <- tableix[2,2] - houses[3]  # Lambeth houses not in the last-4 are in the joint area
+# The last two rows are the approximate houses by region (duplicated in cols 3 & 4)
+housesbyarea[3,1:3] <- houses
+housesbyarea[4,1:3] <- houses
+housesbyarea[,4] <- rowSums(housesbyarea)
+kable(housesbyarea,digits=2,format.args=list(big.mark=","),caption="Houses",format='pandoc')
+kable(popperhouse * housesbyarea,digits=2,format.args=list(big.mark=","),caption="Population",format='pandoc')
+```
+
+Now we can calculate the mortality rates for the various cells of the tables we have just discussed: by supplier and by region. From Table VIII (the seven weeks ending 26th August) we sum for the sub-districts we focus on: first-12 (Southwark-only supply), next-16 (jointly-supplied), and last-4 (Lambeth-only supply). We could do the same for Table VII (the first 4 weeks of the 1854 outbreak).
+
+```{r}
+# --- TABLE VIII - 7 weeks ending 26th August ---
+deathsbyarea <- array(0,dim=c(4,4))
+rownames(deathsbyarea) <- c("Southwark supply","Lambeth supply","Southwark+Lambeth","Total")
+colnames(deathsbyarea) <- c("first-12","next-16 joint","last-4","Total")
+# We subset Table VIII for SouthwarkVauxhall. Col 3 is deaths overall, col 4 supplier=Vauxhall, col 5 supplier = Lambeth
+x1 <- subset(tableviii,supplier=="SouthwarkVauxhall")
+x2 <- colSums(x1[,3:5])    # The columns for x2 are col 1 overall, col 2 supplier = Vauxhall, col 3 supplier = Lambeth
+deathsbyarea[1,1] <- x2[2]
+deathsbyarea[3,1] <- x2[2]+x2[3]
+deathsbyarea[4,1] <- x2[1]
+x1 <- subset(tableviii,supplier=="SouthwarkVauxhall_Lambeth")
+x2 <- colSums(x1[,3:5])    # The columns for x2 are col 1 overall, col 2 supplier = Vauxhall, col 3 supplier = Lambeth
+deathsbyarea[1,2] <- x2[2]
+deathsbyarea[2,2] <- x2[3]
+deathsbyarea[3,2] <- x2[2]+x2[3]
+deathsbyarea[4,2] <- x2[1]
+x1 <- subset(tableviii,supplier=="Lambeth")
+x2 <- colSums(x1[,3:5])    # The columns for x2 are col 1 overall, col 2 supplier = Vauxhall, col 3 supplier = Lambeth
+deathsbyarea[2,3] <- x2[3]
+deathsbyarea[3,3] <- x2[2]+x2[3]
+deathsbyarea[4,3] <- x2[1]
+
+deathsbyarea[,4] <- rowSums(deathsbyarea)
+
+kable(deathsbyarea,digits=0,format.args=list(big.mark=","),caption="Deaths 7 weeks ending 26th August",format='pandoc')
+
+```
+
+Finally, we can calculate the mortality rate per 10,000 households and per 10,000 persons. 
+
+```{r}
+deathrates <- 10000*deathsbyarea/housesbyarea
+# Calculate as rate per person (using density)
+deathratespop <- deathrates / popperhouse
+
+kable(deathrates,digits=2,format.args=list(big.mark=","),caption="Mortality per 10,000 houses, 7 weeks ending 26th August",format='pandoc')
+kable(deathratespop,digits=2,format.args=list(big.mark=","),caption="Mortality per 10,000 people, 7 weeks ending 26th August",format='pandoc')
+
+```
+
+We want to focus on the second column, the "next-16" jointly-supplied sub-districts. Those sub-districts mix together Southwark & Vauxhal customers with Lambeth customers, thus coming closest to true randomization. Note that the final column of the "Houses" table reproduces Snow's final column of Table IX, but corrects a minor error in rounding (`r round(deathrates[2,4],2)` versus Snow's reported `r tableix[2,4]`).
+
+The result simply reinforces Snow's conclusion: focusing on the "next-16" jointly-supplied sub-districts the difference between Southwark & Vauxhall customers versus Lambeth customers is still dramatically large: a factor of 7.6.
+
+In another sheet I examine the population data by sub-district that Snow published in his 1856 "Cholera and the water supply in the south district of London in 1854". With that data we can compare between Southwark & Vauxhall versus Lambeth Companies at the sub-district level. We see with those data that our approximations and imputations for the houses are not perfect, and in particularl we have to incorporate the "Other" category of water supply (e.g. pump-wells) because there are some sub-districts with very little water company customers. 
