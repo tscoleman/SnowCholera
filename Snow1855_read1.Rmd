@@ -1,0 +1,114 @@
+---
+title: "John Snow Project: Reading and cross-checking 1855"
+author: "[Thomas Coleman](http://www.hilerun.org/econ)"
+output: html_notebook
+---
+
+#### See my working paper at https://papers.ssrn.com/abstract=3262234 and [John Snow project website](http://www.hilerun.org/econ/papers/snow)
+
+#### This worksheet is licensed under the [BSD 2-Clause License](https://opensource.org/licenses/BSD-2-Clause)
+
+### Introduction
+
+This is the first, introductory worksheet for my [John Snow project](http://www.hilerun.org/econ/papers/snow). This sheet reads in selected data from John Snow 1855, "On the mode of communication of cholera", (data from the .pdf at http://archive.org/details/b28985266 ) and performs some simple cross-checking: comparing row-sums against Snow's reported totals. 
+
+The four tables I use from Snow 1855 are:
+
+* Table VII: 1854 p 84: deaths by Sub-District, four weeks ending 5th August. Categorized by source (Southwark & Vauxhall; Lambeth; Pump-wells; River Thames, ditches, etc.; Unascertained) categorization carefully performed by Snow
+
+* Table VIII p 85: deaths by Sub-District, seven weeks ending 26th August. Categorized by source (Southwark & Vauxhall; Lambeth; Pump-wells; River Thames, ditches, etc.; Unascertained) categorization carefully performed by Snow
+
+* Table IX p. 86: The Southwark & Vauxhall vs Lambeth comparison (quasi-randomized trial). Displays number of houses, a summary of Table VIII (plus additional for "Rest of London"), and calculated mortality rates per household
+
+* Table XII p. 90: Deaths 1849 & 1854 by sub-district. For 1854 through October 21 (versus through August 26 for Table VIII)
+
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+rm(list=ls())    # starts a fresh workspace
+#
+tablevii <- read.csv(file="Snow1855_TableVII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+tableviii <- read.csv(file="Snow1855_TableVIII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+tableix <- read.csv(file="Snow1855_TableIX.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+tablexii <- read.csv(file="Snow1855_TableXII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+
+```
+
+
+These tables are "data frame" (See https://www.r-bloggers.com/15-easy-solutions-to-your-data-frame-problems-in-r/ for tutorial on data frames). For dataframes subsetting is easy. 
+
+
+```{r}
+class(tablexii)
+
+subset(tableviii,supplier=="Lambeth")
+```
+
+Check Table VII. Snow's published tables show the total in the last row for each column, so the sum of all rows should be twice the last row. The following checks this and all results should be zero.  
+```{r}
+colSums(tablevii[,2:8]) - 2*tablevii[nrow(tablevii),2:8]
+```
+
+Check Table VIII. Again, the the sum of all rows should be twice the last row. The following should be zero.  
+
+```{r}
+colSums(tableviii[,2:8]) - 2*tableviii[nrow(tableviii),2:8]
+```
+
+We can check the population sub-totals in Table VIII (for "first 12", "next 16" and last (Lambeth-only) sub-districts) against the population sub-totals shown in Table VI (p. 73). (Note that Table VI shows only three of the four Lambeth sub-districts - excludes Sydenham). The sub-totals in Table VI are:
+
+* First 12 (Southwark & Vauxhall)  167,654
+* Next 16 (joint Southwark & Vauxhall and Lambeth) 301,149
+* + This seems to be a typo in Snow's Table VI and should read 300,149 so the comparison will be off by 1,000
+* Last 3 (Lambeth excluding Sydenham)  14,632
+* + Sydenham is 4,501 so the comparison will be off by this amoount
+
+
+```{r}
+x1 <- c(sum(subset(tableviii,supplier=="SouthwarkVauxhall")[,2]),
+        sum(subset(tableviii,supplier=="SouthwarkVauxhall_Lambeth")[,2]),
+        sum(subset(tableviii,supplier=="Lambeth")[,2]))
+x1 - c(167654, 301149, 14632)
+```
+
+Table XII has deaths for 1849 and 1854 by sub-district. We can check as follows: 
+
+* Subset by "SouthwarkVauxhall", "SouthwarkVauxhall_Lambeth", "Lambeth" to get the "first 12", "next 16", and "final 4" sub-districts
+* Sum over these subsets
+* Snow reports these sub-totals in the last three rows of Table XII
+* The follwing check will show zeros when the sums over the sub-setted data equal the reported sub-totals
+
+
+```{r}
+xcomp <- matrix(data=0,nrow=3,ncol=2)
+colnames(xcomp) <- c("deaths1849","deaths1854")
+rownames(xcomp) <- c("first12","next16","last4")
+xcomp <- as.data.frame(xcomp)
+x1 <- subset(tablexii,supplier=="SouthwarkVauxhall")
+x2 <- colSums(x1[,2:3])
+x3 <- subset(tablexii,supplier=="first12")
+xcomp[1,] <- x2-x3[2:3]
+x1 <- subset(tablexii,supplier=="SouthwarkVauxhall_Lambeth")
+x2 <- colSums(x1[,2:3])
+x3 <- subset(tablexii,supplier=="next16")
+#print("Death sub-total for SouthwarkVauxhall & Lambeth checked against Snow's subtotal (should be zero)")
+xcomp[2,] <- x2-x3[2:3]
+x1 <- subset(tablexii,supplier=="Lambeth")
+x2 <- colSums(x1[,2:3])
+x3 <- subset(tablexii,supplier=="last4")
+#print("Death sub-total for Lambeth checked against Snow's subtotal (should be zero)")
+xcomp[3,] <- x2-x3[2:3]
+xcomp
+```
+
+
+```{r}
+tablevii
+tableviii
+tableix
+tablexii
+```
+
