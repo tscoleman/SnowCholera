@@ -4,9 +4,9 @@ author: "[Thomas Coleman](http://www.hilerun.org/econ)"
 output: html_notebook
 ---
 
-#### See my working paper at https://papers.ssrn.com/abstract=3262234 and [John Snow project website](http://www.hilerun.org/econ/papers/snow)
+#### See "Causality in the Time of Cholera" working paper at https://papers.ssrn.com/abstract=3262234 and my [John Snow project website](http://www.hilerun.org/econ/papers/snow)
 
-#### This worksheet is licensed under the [BSD 2-Clause License](https://opensource.org/licenses/BSD-2-Clause)
+#### This notebook is licensed under the [BSD 2-Clause License](https://opensource.org/licenses/BSD-2-Clause)
 
 ### Introduction
 
