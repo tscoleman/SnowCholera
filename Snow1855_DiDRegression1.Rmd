@@ -1,0 +1,300 @@
+---
+title: "John Snow Project - DiD Regressions"
+author: "[Thomas Coleman](http://www.hilerun.org/econ)"
+output: html_notebook
+---
+# Difference in Differences Regressions - Data from Snow 1855
+
+#### See "Causality in the Time of Cholera" working paper at https://papers.ssrn.com/abstract=3262234 and my [John Snow project website](http://www.hilerun.org/econ/papers/snow)
+
+#### This notebook is licensed under the [BSD 2-Clause License](https://opensource.org/licenses/BSD-2-Clause)
+
+### Introduction
+
+This worksheet performs linear and count regressions for 1849 versus 1854 data
+
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+**NB: We need the data and some of the calculations from the notebook 'Snow1855_DiDRegression1.Rmd' so we execute this little hack to extract the R code from that sheet, write a new .R file, and then source that here**
+``````{r message=FALSE, results='hide'}
+knit('Snow1855_SimpleDiD_QRCT.Rmd', tangle=TRUE)
+source('Snow1855_SimpleDiD_QRCT.R') 
+# The following libraries are used for the Negative Binomial regression and the robust standard error analysis
+#install.packages("sandwich")
+#install.packages("lmtest")
+library("MASS")
+library("sandwich") 
+library("lmtest") 
+
+```
+
+###Difference-in-Differences Framework
+
+The basic difference-in-differences structure can be displayed in a table like:
+
+| Sub-districts | 1849 Mortality (rate) |  1854 Mortality (rate) | Diff 1854 less 1849 |
+| --------------------- |  --------------------- | --------------------- |  --------------------- |
+|First 12 Southwark-supplied | $\mu$ | $\mu + \delta 54$ | $\delta 54$  |
+|Next 16 jointly-supplied | $\mu + \gamma$ | $\mu + \delta 54 + \gamma + \beta$ | $\delta 54 + \beta$  |
+|Diff next-16 less first-12 | $\gamma$ | $\gamma + \beta$ | $\beta$  |
+
+
+```{r results='asis'}
+# The diff-in-diffs table (levels) from the notebook 'Snow1855_SimpleDiD_QRCT.Rmd'
+kable(diff_in_diffs_Level,digits=2,caption="Diff-in-Diffs, Levels (rate per 10,000)",format='pandoc')
+kable(diff_in_diffs_Log,digits=3,caption="Diff-in-Diffs, Levels (rate per 10,000)",format='pandoc')
+```
+
+This table looks very simple, but when we examine the original data (Snow's Table XII) we see many sub-districts and considerable variation across sub-districts. Looking only at the first two sub-districts in 1849, for example, `r tablexii[1,1]` has mortality of `r round(tablexii[1,6],1)` while `r tablexii[2,1]` has mortality of `r round(tablexii[2,6],1)`. We need some statistical framework to incorporate and analyze this variability. 
+
+```{r}
+tablexii[,c(1,2,3,4,6,7)]
+```
+
+
+For a start we can consider the following equation, which puts the difference-in-differences table above into equation form but also allows multiple sub-districts - each sub-district having its own rate, etc.:
+
+$ln(Rate) = \mu + \delta 54*I(54) + \gamma*I(joint) + \beta*I(54)*I(joint) + \epsilon$
+
+* an overall constant ($\mu$)
+* a difference for 1854 ($\delta54$) 
+* a difference for joint "next 16" region ($\gamma$)
+* an interaction for 1854 and joint ($\beta$)
+
+For various reasons we want to run this as linear-in-logs rather than linear-in-rates. 
+
+###Formatting the regression data
+
+To run this as a regression we need to take the death counts from Table XII (deaths by sub-district), combine with population from Table VIII for calculating rates, incorporate proper indicator variables, and then stack the data. Our original data (the .csv files read in above) have a variable "supplier" that acts as indicator for "first-12" (Southwark-only supply) versus "next-16" (jointly-supplied) sub-districts and another ("lambethdegree") that serves as an indicator for "Southwark-only", "less-Lambeth" and "more-Lambeth" supply. We need to construct a year factor (1849 versus 1854). The stacking an indicator construction is executed with the following code chunk. 
+
+```{r}
+x1 <- subset(tableviii,supplier == "SouthwarkVauxhall" | supplier == "SouthwarkVauxhall_Lambeth")
+x1849 <- x1[c("subDistrict","pop1851","supplier","lambethdegree")]
+x1 <- subset(tablexii,supplier == "SouthwarkVauxhall" | supplier == "SouthwarkVauxhall_Lambeth")
+x1849$deaths <- x1$deaths1849
+x1849$rate <- 10000 * x1$deaths1849 / x1849$pop1851
+x1849$seq <- c(seq(1,length(x1849$deaths)))
+#x1849$dum1854 <- 0
+xyear <- factor(c(rep(1849,28),rep(1854,28)))
+x1849$year <- xyear[1:28]
+x1854 <- x1849
+#x1849$lambethdegree <- "dirty"
+x1854$deaths <- x1$deaths1854
+x1854$rate <- 10000 * x1$deaths1854 / x1849$pop1851
+x1854$seq <- c(seq(1,length(x1849$deaths)))
+#x1854$dum1854 <- 1
+x1854$year <- xyear[29:56]
+
+regdata <- rbind(x1849,x1854)
+regdata
+```
+
+### Linear Regressions
+
+We can start out by running a linear regression (linear in logs). The following code chunk executes three linear regressions but only displays the first: with Lambeth-supplier ("supplier" or "first-12" vs "next-16") and year indicators.
+
+
+```{r}
+# Linear-in-logs with Lambeth ("supplier" or "first-12" vs "next-16") and year indicators
+lin1single <- lm(log(regdata$rate/10000) ~ regdata$supplier * regdata$year )
+lin1singlerobustse <- coeftest(lin1single, vcov = vcovHC(lin1single))
+summary(lin1single)
+# Linear-in-logs with two Lambeth indicators ("first-12" vs "next-16 split into less_lambeth" and "more_lambeth") and year indicators
+lin1both <- lm(log(regdata$rate/10000) ~ regdata$lambethdegree * regdata$year )
+lin1bothrobustse <- coeftest(lin1both, vcov = vcovHC(lin1both))
+# Linear-in-logs with sub-district fixed effects and Lambeth ("supplier" or "first-12" vs "next-16") and year indicators
+lin2both <- lm(log(regdata$rate/10000) ~ regdata$subDistrict + regdata$lambethdegree * regdata$year )
+lin2bothrobustse <- coeftest(lin2both, vcov = vcovHC(lin2both))
+```
+
+The coefficient we are interested in is the last: `r labels(lin1single$coefficients[4])`: the coefficient $\beta$ in the equation above. This calculates the average Lambeth effect, averaged across the sub-districts. The standard errors measure the precision of our estimated average based on the variation across sub-districts. 
+
+But here is an important puzzle: why is the coefficient `r round(lin1single$coefficients[4],3)` not the same as the calculated Lambeth effect in the table above (`r round(diff_in_diffs_Log[3,3],3)`)? The reason is that the linear regressios are not correct, and this leads to our next topic.
+
+### Poisson Count Regressions
+
+The linear-in-logs regression above looks correct but it is not: we have implicitely assumed that the error term $\epsilon$ is normal and this cannot be correct. To see why, re-write the regression equation (using the fact that *Rate* = *Count/Population* so that *ln(Rate)* = *ln(Count)-ln(Population)*) as 
+
+$ln(Count) = \mu + \delta 54*I(54) + \gamma*I(joint) + \beta*I(54)*I(joint) + \epsilon + ln(Population)$
+
+*Count* is the number of deaths and can only take non-negative integer values, so the error $\epsilon$ cannot be Normal. It can, however, be Poisson. (For a discussion of the Poisson distribution and Poisson and Negative Binomial regression see my working paper at https://papers.ssrn.com/abstract=3262234 and the references therein.) There are various routines in R and other statstical packages for running regression assuming that the error $\epsilon$ is Poisson (or other count distributions such as Negative Binomial). 
+
+The following code chunk runs Poisson regressions. The various combinations of single versus two Lambeth (treatment) effects and fixed effects are discussed in my working paper at https://papers.ssrn.com/abstract=3262234 
+
+```{r}
+# Poisson with single "Lambeth effect" and same rate for all sub-districts (no sub-district fixed effects)
+pois1single <- glm(regdata$deaths ~ regdata$supplier * regdata$year 
+	+ offset(log(regdata$pop1851)), family=poisson)
+pois1singlerobustse <- coeftest(pois1single, vcov = vcovHC(pois1single))
+#summary(pois1single)
+#logLik(pois1single)
+# Poisson with two "Lambeth effects" and same rate for all sub-districts (no sub-district fixed effects)
+pois1both <- glm(regdata$deaths ~ regdata$lambethdegree * regdata$year 
+	+ offset(log(regdata$pop1851)), family=poisson)
+pois1bothrobustse <- coeftest(pois1both, vcov = vcovHC(pois1both))
+#summary(pois1both)
+#logLik(pois1both)
+# Poisson with single "Lambeth effect" and different rates by sub-district (fixed effects)
+pois2single <- glm(regdata$deaths ~ regdata$subDistrict + regdata$supplier * regdata$year 
+	+ offset(log(regdata$pop1851)), family=poisson)
+pois2singlerobustse <- coeftest(pois2single, vcov = vcovHC(pois2single))
+#summary(pois2single)
+#logLik(pois2single)
+# Poisson with two "Lambeth effects" and different rates by sub-district (fixed effects)
+pois2both <- glm(regdata$deaths ~ regdata$subDistrict + regdata$supplier * regdata$year 
+	+ offset(log(regdata$pop1851)), family=poisson)
+pois2bothrobustse <- coeftest(pois2both, vcov = vcovHC(pois2both))
+#summary(pois2both)
+#logLik(pois2both)
+
+# NB: The robust standard errors approach I found at:
+#  https://stat.ethz.ch/pipermail/r-help/2008-May/161591.html
+#Then click on "Next message:" for the second. Unfortunately, 
+#at that point the thread broke 
+# So to continue, next take: 
+#  https://stat.ethz.ch/pipermail/r-help/2008-May/161640.html
+#and thereafter continue to click on "Next message:" until the 
+#thread runs out. 
+# Also cf https://stats.stackexchange.com/questions/117052/replicating-statas-robust-option-in-r
+# NB: STATA seems to use HC1 for robust BUT with n-1 instead of n-k (see "sandwich.pdf" and 
+#	https://stats.stackexchange.com/questions/89999/how-to-replicate-statas-robust-binomial-glm-for-proportion-data-in-r)
+
+
+# Display the regression for the single Lambeth effect here:
+summary(pois1single)
+
+```
+
+This regession is for a single Lambeth effect. Now the coefficient for the Lambeth effect (`r round(pois1single$coefficients[4],3)`) matches exactly the value for $\beta$ calculated in the table above. 
+
+It appears that this estimated Lambeth or treatment effect is very highly significant: z value = `r round(summary(pois1single)$coefficients[4,3],1)`. But this is wrong. This is discussed in more detail in another notebook (and my working paper), but suffice to say here that the Poisson regression does not fit the data very well. In the statistics literature this is termed "overdispersion". The diagnostic tool we can use is the "Residual Deviance". It is approximately chi-squared distributed and the probability of observing a value as large as we see here (`r round(pois1single$deviance,0)`) is tiny. 
+
+The result of the overdispersion for the Poisson regression is that the true standard errors are much larger than reported in the regression. One way to handle this is to use robust standard errors. The code chunk above calculates robust standard errors and the comments in the code chunk have links to more discussion. 
+
+###Negative Binomial Count Regressions
+
+Another way to handle the overdispersion (again, discussed in more detail in another notebook and my working paper) is to allow the counts (specifically the error term $\epsilon$) to be Negative Binomial distributed. Once again, R has routines for this, in the MASS package. 
+
+
+```{r}
+# Negative Binomial with single "Lambeth effect" 
+nb1single <- glm.nb(regdata$deaths ~ regdata$supplier * regdata$year 
+	+ offset(log(regdata$pop1851)))
+nb1singlerobustse <- coeftest(nb1single, vcov = vcovHC(nb1single))
+#summary(nb1single)
+#logLik(nb1single)
+#print(coeftest(nb1single, vcov = vcovHC(nb1single)))
+
+# Negative Binomial with two "Lambeth effects" 
+nb1both <- glm.nb(regdata$deaths ~ regdata$lambethdegree * regdata$year 
+	+ offset(log(regdata$pop1851)))
+nb1bothrobustse <- coeftest(nb1both, vcov = vcovHC(nb1both))
+#summary(nb1both)
+#logLik(nb1both)
+#print(coeftest(nb1both, vcov = vcovHC(nb1both)))
+
+# Negative Binomial with two "Lambeth effects" and sub-district fixed effects
+nb2both <- glm.nb(regdata$deaths ~ regdata$subDistrict + regdata$lambethdegree * regdata$year 
+	+ offset(log(regdata$pop1851)))
+nb2bothrobustse <- coeftest(nb2both, vcov = vcovHC(nb2both))
+#summary(nb2both)
+#logLik(nb2both)
+#print(coeftest(nb2both, vcov = vcovHC(nb2both)))
+
+# Show results for the Negative Binomial with two Lambeth effects
+summary(nb1single)
+
+```
+
+The negative binomial is reasonably good at fitting the observed sub-district variability: the Residual Deviance is now `r round(nb1single$deviance,1)` which is small enough to not reject this regression. As a result we can have some confidence that the standard errors reported are realistic. For this regression the single Lambeth effect is modestly significant, with a z value of `r round(summary(nb1single)$coefficients[4,3],2)`. (Note that when we measure the effect separating sub-districts into "more" and "less" Lambeth coverage, the "more Lambeth" effect is highly significant. That result is summarized in the tables just following. When we introduce the population data published in 1856 (another notebook and my working paper) we find an overhwelmingly strong Lambeth effect.)
+
+
+###Creating Tables for Results
+
+To summarize the results I create tables in the following code chunk to summarize the regressions. I don't display these tables but you can if you wish.
+
+```{r}
+
+# Regression table for linear, with robust SEs for poisson
+regtablelin <- matrix(0,nrow=14,ncol=5)
+colnames(regtablelin) <- c("Linear Single","Poiss1 Single robust","NB1 Single","Linear Both","NB1 Both")
+rownames(regtablelin) <- c("Treat less Lamb","SE", "z value","p-value","treat (ratio)",
+	"Treat more Lamb","SE","z value", "p-value","treat (ratio)","theta","region1","region2","time")
+# Populate the table from the regressions
+regtablelin[c(1,2,3,4),1] <- summary(lin1single)$coefficients[4,c(1,2,3,4)]
+regtablelin[c(1,2,3,4),2] <- summary(pois1single)$coefficients[4,c(1,2,3,4)]
+regtablelin[c(1,2,3,4),3] <- summary(nb1single)$coefficients[4,c(1,2,3,4)]
+regtablelin[c(1,2,3,4),4] <- summary(lin1both)$coefficients[5,c(1,2,3,4)]
+regtablelin[c(6,7,8,9),4] <- summary(lin1both)$coefficients[6,c(1,2,3,4)]
+regtablelin[c(1,2,3,4),5] <- summary(nb1both)$coefficients[5,c(1,2,3,4)]
+regtablelin[c(6,7,8,9),5] <- summary(nb1both)$coefficients[6,c(1,2,3,4)]
+regtablelin[11,3] <- nb1single$theta
+regtablelin[11,5] <- nb1both$theta
+# Calculate the treatment effect as a ratio (exponentiate)
+regtablelin[5,] <- exp(-regtablelin[1,])
+regtablelin[10,c(4,5)] <- exp(-regtablelin[6,c(4,5)])
+# Now the control (region & time) effects
+regtablelin[c(12,14),1] <- lin1single$coefficients[c(2,3)]
+regtablelin[c(12,14),2] <- pois1singlerobustse[c(2,3),1]
+regtablelin[c(12,14),3] <- nb1single$coefficients[c(2,3)]
+regtablelin[c(12,13,14),4] <- lin1both$coefficients[c(2,3,4)]
+regtablelin[c(12,13,14),5] <- nb1both$coefficients[c(2,3,4)]
+
+
+
+# Create table with regression results (diff-in-diffs estimate) using robust SEs
+# for all except the NB1 (Negative Binomial without sub-district fixed effects)
+regtablepoiss <- matrix(0,nrow=19,ncol=5)
+colnames(regtablepoiss) <- c("Poiss Single","Poiss Single FE","NB1 Single","NB1 Both","NB2 Both")
+rownames(regtablepoiss) <- c("Treat less Lamb","SE","z value","p-value",
+	"robust SE","z value","treat (ratio)",
+	"Treat more Lamb","SE","z value","p-value",
+	"robust SE","z value","treat (ratio)",
+	"theta","resid dev","region1","region2","time")
+# Populate the table from the regressions
+regtablepoiss[c(1,2,3,4),1] <- summary(pois1single)$coefficients[4,c(1,2,3,4)] # coeff, SE, t-ratio, p-value
+regtablepoiss[c(5,6),1] <- pois1singlerobustse[4,c(2,3)]             # robust SE, t-ratio
+regtablepoiss[16,1] <- pois1single$deviance
+# Now the control (region & time) effects
+regtablepoiss[c(17,19),1] <- summary(pois1single)$coefficients[c(2,3),1] 
+
+regtablepoiss[c(1,2,3,4),2] <- summary(pois2single)$coefficients[30,c(1,2,3,4)]  # Lambeth effect is at end
+regtablepoiss[c(5,6),2] <- pois2singlerobustse[30,c(2,3)]     
+regtablepoiss[16,2] <- pois2single$deviance
+regtablepoiss[19,2] <- summary(pois2single)$coefficients[29,1]    # time effect
+
+regtablepoiss[c(1,2,3,4),3] <- summary(nb1single)$coefficients[4,c(1,2,3,4)]
+regtablepoiss[c(5,6),3] <- nb1singlerobustse[4,c(2,3)]
+regtablepoiss[15,3] <- nb1single$theta
+regtablepoiss[16,3] <- nb1single$deviance
+regtablepoiss[c(17,19),3] <- nb1single$coefficients[c(2,3)]
+
+regtablepoiss[c(1,2,3,4),4] <- summary(nb1both)$coefficients[5,c(1,2,3,4)] # coeff, SE, t-ratio, p-value for 1st Lambeth effect
+regtablepoiss[c(5,6),4] <- nb1bothrobustse[5,c(2,3)]
+regtablepoiss[c(8,9,10,11),4] <- summary(nb1both)$coefficients[6,c(1,2,3,4)] # coeff, SE, t-ratio, p-value for 2nd Lambeth effect
+regtablepoiss[c(12,13),4] <- nb1bothrobustse[6,c(2,3)]
+regtablepoiss[15,4] <- nb1both$theta
+regtablepoiss[16,4] <- nb1both$deviance
+regtablepoiss[c(17,18,19),4] <- nb1both$coefficients[c(2,3,4)]
+
+regtablepoiss[c(1,2,3,4),5] <- summary(nb2both)$coefficients[30,c(1,2,3,4)]
+regtablepoiss[c(5,6),5] <- nb2bothrobustse[30,c(2,3)]
+regtablepoiss[c(8,9,10,11),5] <- summary(nb2both)$coefficients[31,c(1,2,3,4)]
+regtablepoiss[c(12,13),5] <- nb2bothrobustse[31,c(2,3)]
+regtablepoiss[15,5] <- nb2both$theta
+regtablepoiss[16,5] <- nb2both$deviance
+regtablepoiss[19,5] <- summary(nb2both)$coefficients[29]
+
+# Calculate the treatment effect as a ratio (exponentiate)
+regtablepoiss[7,] <- exp(-regtablepoiss[1,])
+regtablepoiss[14,c(4,5)] <- exp(-regtablepoiss[8,c(4,5)])
+
+regtablelin <- as.data.frame(regtablelin)
+regtablepoiss <- as.data.frame(regtablepoiss)
+#regtablelin
+#regtablepoiss
+```
+
