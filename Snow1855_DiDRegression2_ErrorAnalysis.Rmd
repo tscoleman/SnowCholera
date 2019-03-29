@@ -1,0 +1,410 @@
+---
+title: "John Snow Project - DiD Error Analysis"
+author: "[Thomas Coleman](http://www.hilerun.org/econ)"
+output: html_notebook
+---
+# Difference in Differences Regressions - Error Analysis and Graphs for data from Snow 1855
+
+#### See "Causality in the Time of Cholera" working paper at https://papers.ssrn.com/abstract=3262234 and my [John Snow project website](http://www.hilerun.org/econ/papers/snow)
+
+#### This notebook is licensed under the [BSD 2-Clause License](https://opensource.org/licenses/BSD-2-Clause)
+
+### Introduction
+
+This notebook discusses the count regressions (Poisson and Negative Binomial) for 1849 versus 1854 data that are run in the notebook *Snow1855_DiDRegression1.Rmd*. 
+
+The variation across sub-districts and within sub-districts across time (1849 versus 1854) are too large to be accounted for simply by random variation in counts with *fixed* mortality rates, as assumed for Poisson regression. We seem to be pushed towards the conclusion that the rates themselves are random, which would be consistent with Negative Binomial regression. 
+
+This notebook calculates and graphs the actual versus predicted rates under three assumptions:
+
+* Poisson regression with rates the same across sub-districts
+* Poisson regression but allowing rates to differ across sub-districts (fixed effects)
+* Negative Binomial regression so that underlying Poisson rates are themsleves Gamma-distributed across sub-districts and time
+
+
+For a brief introduction to Snow's work, see:
+
++ **Snow's original 1855 monograph** (it is masterful): Snow, John. 1855. *On the Mode of Communication of Cholera*. 2nd ed. London: John Churchill. http://archive.org/details/b28985266.
++ **The best popular exposition I have found**: Johnson, Steven. 2007. *The Ghost Map: The Story of London’s Most Terrifying Epidemic--and How It Changed Science, Cities, and the Modern World*. Reprint edition. New York: Riverhead Books.
++ **Another good popular version**: Hempel, Sandra. 2007. *The Strange Case of the Broad Street Pump: John Snow and the Mystery of Cholera*. First edition. Berkeley: University of California Press.
++ **Tufte's classic discussion of Snow's mapping** (a topic I don't cover here): Tufte, Edward R. 1997. *Visual Explanations: Images and Quantities, Evidence and Narrative*. 1st edition. Graphics Press.
+
+
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. The results are also saved in a self-contained html document with the suffix *.nb.html*. If you want pure r code (for example to run outside RStudio) you can easily extract code with the command *knit('notebook.Rmd',tangle=TRUE)* which will save a file 'notebook.R' under your working directory.
+
+Try executing the chunk below by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+``````{r message=FALSE, results='hide'}
+rm(list=ls())    # starts a fresh workspace
+#
+library(knitr)
+options(scipen=5)
+# The following libraries are used for the Negative Binomial regression and the robust standard error analysis
+#install.packages("sandwich")
+#install.packages("lmtest")
+library("MASS")
+library("sandwich") 
+library("lmtest") 
+
+# Read in the data
+tablevii <- read.csv(file="Snow1855_TableVII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+tableviii <- read.csv(file="Snow1855_TableVIII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+tableix <- read.csv(file="Snow1855_TableIX.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+tablexii <- read.csv(file="Snow1855_TableXII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+
+```
+
+###"Worker" Functions for Plotting
+
+The main object of this notebook is to plot mortality rates for sub-districts, say comparing 1849 versus 1854, with (approximate) error bars overlaid. The graphs are basically all the same with just different input data. So I have put together some simple functions that produce a standard format graph.
+
+**preperrdata** Before graphing, however, we need to prepare the data
+
+* Takes in *fittedmodel* - a regression that has been already run. From this it extracts the necessary parameters. Also *single*, a string which for "single" says that there is a single treatment effect. 
+* Calculates the 1849 and 1854 predicted counts and rates
+* Calculates *approximate* 95% error bars around the predicted rates, based on whether the fitted model is Poisson or Negative Binomial
+* Produces an adjusted 1854 predicted rate, adjusting for the 1854 time effect and treatment effect, so that it is comparable to the 1849 predicted rate (for purposes of plotting with error bars)
+
+This function changes global data (the x1849 & x1854 dataframes) using the "<<-" instead of "<-" assignment. This is poor programming style but I could not find another easy way of doing what I wanted. 
+
+**plot2_worker** Plots actual vs predicted, with error bars around the predicted
+
+* Actually does the plotting, given all the data as input arguments (sequence no. for sub-districts; the actual mean or rate; predicted; the 2.5% and 97.5% points; title)
+* btw, the hack for plotting error bars is from https://stackoverflow.com/questions/13032777/scatter-plot-with-error-bars
+
+**plot2_worker** Is a cover function which unpacks the actual versus predicted mean from the appropriate dataframe
+
+**plot3** Plots actual 1849, 1854 (adjusted for time & treatment effects), predicted, with error bars
+
+**plotcomp** Plots actual 1849 versus 1854, with error bars around actual 1849
+
+**ploterrbars** is NOT a function you should use - I use it to print out .pdf versions of the graphs I want to use
+
+
+```{r}
+preperrdata <- function(fittedmodel,single = "single") {       # This is not a good way to do this because I am 
+	                                                  # changing globals from within the function (using <<- 
+	                                                  # instead of <-)
+# Function to prepare the data (error bars) for graphing
+# The 2.5% and 97.5% confidence bands are calculated assuming either Poisson or Negative Binomial
+# The rates are calculated by generating the counts up and down from the "expected" (from the fitted model)
+
+	expected <- exp(predict(fittedmodel))       # expected values
+	theta <- fittedmodel$theta
+	x1849$predcount <<- expected[1:28]
+	x1854$predcount <<- expected[29:56]
+	x1849$predrate <<- 10000 * expected[1:28] / x1849$pop1851
+	x1854$predrate <<- 10000 * expected[29:56] / x1854$pop1851
+	xfamily <- family(fittedmodel)$family
+	if (xfamily == "poisson") {         # Get 95% confidence bands depending on model used (Poiss vs Neg Binom)
+		x1849$limdn <<- 10000 * qpois(.025,lambda=x1849$predcount) / x1849$pop1851
+		x1849$limup <<- 10000 * qpois(.975,lambda=x1849$predcount) / x1849$pop1851
+	} else {
+		x1849$limdn <<- 10000 * qnbinom(.025,size=theta,mu=x1849$predcount) / x1849$pop1851
+		x1849$limup <<- 10000 * qnbinom(.975,size=theta,mu=x1849$predcount) / x1849$pop1851
+		x1854$limdn <<- 10000 * qnbinom(.025,size=theta,mu=x1854$predcount) / x1849$pop1851
+		x1854$limup <<- 10000 * qnbinom(.975,size=theta,mu=x1854$predcount) / x1849$pop1851
+		x1849$limdnact <<- 10000 * qnbinom(.025,size=theta,mu=x1849$deaths) / x1849$pop1851
+		x1849$limupact <<- 10000 * qnbinom(.975,size=theta,mu=x1849$deaths) / x1849$pop1851
+	}
+
+	if (single == "single")  {   # model with single treatment effect
+		xdegless <- (coef(fittedmodel)["regdata$supplierSouthwarkVauxhall_Lambeth:regdata$year1854"])
+		xdegmore <- xdegless               # Make both treatment effects the same
+	} else {      # model with two treatment effects          		
+		xdegless <- (coef(fittedmodel)["regdata$lambethdegreeless_Lambeth:regdata$year1854"])
+		xdegmore <- (coef(fittedmodel)["regdata$lambethdegreemore_Lambeth:regdata$year1854"])		
+	}
+
+	# Now adjust up the 1854 predicted counts (and rates) for the time and treatment fixed effects
+	xyr1854 <- (coef(fittedmodel)["regdata$year1854"])
+	x3 <- exp(-xyr1854)
+	# Adjust for the year effect only - this should make 1849 & 1854 comparable net of time effect
+	x1854$rateadjyr <<- 10000 * (x1854$deaths*x3) / x1854$pop1851
+	# Adjust the 1854 actual for the estimated Treatment Effect and the estimate Year Effect
+	x3 <- x3 * exp(-(x1854$lambethdegree == "less_Lambeth")*xdegless) 
+	x3 <- x3 * exp(-(x1854$lambethdegree == "more_Lambeth")*xdegmore)
+	# Adjust for year & treatment effect - so that we can compare the actuals against each other 
+	x1854$rateadj <<- 10000 * (x1854$deaths*x3) / x1854$pop1851
+
+	return(xfamily)
+}
+
+
+# "Worker" function to plot mean, predicted, and error bars
+plot2_worker <- function(yseq, xmean,xlimdn,xpred,xlimup,title) {            
+	xplot <- plot(xmean, yseq,
+	    xlim=range(c(xmean, xpred,xlimdn,xlimup)),
+	    ylim=rev(range(yseq)), col="red",
+	    main=title,xlab="Mortality rate actual (red filled) vs predicted (empty circle)",ylab="sub-district",
+	    pch=19)
+	lines(xpred, yseq, type="p",
+	    xlim=range(c(xmean, xpred,xlimdn,xlimup)),
+	    ylim=rev(range(yseq)), 
+	    pch=1)
+	# horizontal error bars
+	xplot <- arrows(xlimdn, yseq, xlimup, yseq, length=0.05, angle=90, code=3,lty=3)
+	xplot
+}
+# "Cover" function that takes in the dataframe and unpacks
+plot2 <- function(confidata,xsupplier,title) {            
+	xmean <- subset(confidata,supplier==xsupplier)[,"rate"]
+	xlimdn <- subset(confidata,supplier==xsupplier)[,"limdn"]
+	xlimup <- subset(confidata,supplier==xsupplier)[,"limup"]
+	xpred <- subset(confidata,supplier==xsupplier)[,"predrate"]
+	yseq <- subset(confidata,supplier==xsupplier)[,"seq"]
+#	xtitle <- paste(xsupplier,title)
+	xplot <- plot2_worker(yseq,xmean,xlimdn,xpred,xlimup,title)
+}
+
+plot3 <- function(confidata1849,confidata1854,xsupplier,title) {            
+	xmean <- subset(confidata1849,supplier==xsupplier)[,"rate"]
+	xlimdn <- subset(confidata1849,supplier==xsupplier)[,"limdn"]
+	xlimup <- subset(confidata1849,supplier==xsupplier)[,"limup"]
+	xpred <- subset(confidata1849,supplier==xsupplier)[,"predrate"]
+	y <- subset(confidata1849,supplier==xsupplier)[,"seq"]
+	x1854adj <- subset(confidata1854,supplier==xsupplier)[,"rateadj"]
+	xplot <- plot(xmean, y,
+	    xlim=range(c(xmean, xpred,xlimdn,xlimup,x1854adj)),
+	    ylim=rev(range(y)), col="red", 
+	    main=title,xlab="Mortality: 1849 red circle, 1854 blue diamond vs predicted (circle)",ylab="sub-district",
+	    pch=19)
+	lines(xpred, y, type="p",
+	    xlim=range(c(xmean, xpred,xlimdn,xlimup)),
+	    ylim=rev(range(y)), 
+	    pch=1)
+	lines(x1854adj, y, type="p",
+	    xlim=range(c(xmean, xpred,xlimdn,xlimup)),
+	    ylim=rev(range(y)), col="blue", 
+	    pch=17)
+
+	# horizontal error bars
+	xplot <- arrows(xlimdn, y, xlimup, y, length=0.05, angle=90, code=3,lty=3)
+}
+
+# Plotting joint region for 1849 & 1854 with error bars for each
+plotcomp <- function(confidata1849,confidata1854,xsupplier,title) {            
+	xmean <- subset(confidata1849,supplier==xsupplier)[,"rate"]
+	xlimdn <- subset(confidata1849,supplier==xsupplier)[,"limdnact"]
+	xlimup <- subset(confidata1849,supplier==xsupplier)[,"limupact"]
+	xpred <- subset(confidata1849,supplier==xsupplier)[,"predrate"]
+	y <- subset(confidata1849,supplier==xsupplier)[,"seq"]
+	xmean1854 <- subset(confidata1854,supplier==xsupplier)[,"rateadjyr"]
+#	xlimdn1854 <- subset(confidata1854,supplier==xsupplier)[,"limdn"]
+#	xlimup1854 <- subset(confidata1854,supplier==xsupplier)[,"limup"]
+	xplot <- plot(xmean, y,
+	    xlim=range(c(xmean, xmean1854,xlimdn,xlimup)),
+	    ylim=rev(range(y)), col="red",
+	    main=title,xlab="Mortality: 1849 red circle, 1854 blue diamond",ylab="sub-district",
+	    pch=19)
+	lines(xmean1854, y, type="p",
+	    xlim=range(c(xmean, xmean1854,xlimdn,xlimup)),
+	    ylim=rev(range(y)), col="blue",
+	    pch=17)
+
+	# horizontal error bars
+	xplot <- arrows(xlimdn, y, xlimup, y, length=0.05, angle=90, code=3,,lty=3)
+#	xplot <- arrows(xlimdn1854, y, xlimup1854, y, length=0.05, angle=90, code=3)
+}
+
+preperrdata <- function(fittedmodel,single = "single") {       # This is not a good way to do this because I am 
+	                                                  # changing globals from within the function (using <<- 
+	                                                  # instead of <-)
+# Function to prepare the data (error bars) for graphing
+# The 2.5% and 97.5% confidence bands are calculated assuming either Poisson or Negative Binomial
+# The rates are calculated by generating the counts up and down from the "expected" (from the fitted model)
+
+	expected <- exp(predict(fittedmodel))       # expected values
+	theta <- fittedmodel$theta
+	x1849$predcount <<- expected[1:28]
+	x1854$predcount <<- expected[29:56]
+	x1849$predrate <<- 10000 * expected[1:28] / x1849$pop1851
+	x1854$predrate <<- 10000 * expected[29:56] / x1854$pop1851
+	xfamily <- family(fittedmodel)$family
+	if (xfamily == "poisson") {         # Get 95% confidence bands depending on model used (Poiss vs Neg Binom)
+		x1849$limdn <<- 10000 * qpois(.025,lambda=x1849$predcount) / x1849$pop1851
+		x1849$limup <<- 10000 * qpois(.975,lambda=x1849$predcount) / x1849$pop1851
+	} else {
+		x1849$limdn <<- 10000 * qnbinom(.025,size=theta,mu=x1849$predcount) / x1849$pop1851
+		x1849$limup <<- 10000 * qnbinom(.975,size=theta,mu=x1849$predcount) / x1849$pop1851
+		x1854$limdn <<- 10000 * qnbinom(.025,size=theta,mu=x1854$predcount) / x1849$pop1851
+		x1854$limup <<- 10000 * qnbinom(.975,size=theta,mu=x1854$predcount) / x1849$pop1851
+		x1849$limdnact <<- 10000 * qnbinom(.025,size=theta,mu=x1849$deaths) / x1849$pop1851
+		x1849$limupact <<- 10000 * qnbinom(.975,size=theta,mu=x1849$deaths) / x1849$pop1851
+	}
+
+	if (single == "single")  {   # model with single treatment effect
+		xdegless <- (coef(fittedmodel)["regdata$supplierSouthwarkVauxhall_Lambeth:regdata$year1854"])
+		xdegmore <- xdegless               # Make both treatment effects the same
+	} else {      # model with two treatment effects          		
+		xdegless <- (coef(fittedmodel)["regdata$lambethdegreeless_Lambeth:regdata$year1854"])
+		xdegmore <- (coef(fittedmodel)["regdata$lambethdegreemore_Lambeth:regdata$year1854"])		
+	}
+
+	# Now adjust up the 1854 predicted counts (and rates) for the time and treatment fixed effects
+	xyr1854 <- (coef(fittedmodel)["regdata$year1854"])
+	x3 <- exp(-xyr1854)
+	# Adjust for the year effect only - this should make 1849 & 1854 comparable net of time effect
+	x1854$rateadjyr <<- 10000 * (x1854$deaths*x3) / x1854$pop1851
+	# Adjust the 1854 actual for the estimated Treatment Effect and the estimate Year Effect
+	x3 <- x3 * exp(-(x1854$lambethdegree == "less_Lambeth")*xdegless) 
+	x3 <- x3 * exp(-(x1854$lambethdegree == "more_Lambeth")*xdegmore)
+	# Adjust for year & treatment effect - so that we can compare the actuals against each other 
+	x1854$rateadj <<- 10000 * (x1854$deaths*x3) / x1854$pop1851
+
+	return(xfamily)
+}
+
+ploterrbars <- function(fittedmodel,plotname,single = "single") {       # This is not a good way to do this because I am 
+	                                                  # changing globals from within the function (using <<- 
+	                                                  # instead of <-)
+	xfamily <- preperrdata(fittedmodel,single)  # this function modifies global data
+
+	pdf(paste("../paper/figures/errbar_",plotname,"a.pdf",sep=""))
+		plot2(x1849,"SouthwarkVauxhall",paste("First-12 Southwark-only ",xfamily," 1849 "))
+	dev.off()
+	pdf(paste("../paper/figures/errbar_",plotname,"b.pdf",sep=""))
+		plot2(x1849,"SouthwarkVauxhall_Lambeth",paste("Next-16 Jointly-Supplied ",xfamily," 1849 "))
+	dev.off()
+	pdf(paste("../paper/figures/errbar_",plotname,"c.pdf",sep=""))
+		plot3(x1849,x1854,"SouthwarkVauxhall",paste("First-12 Southwark-only ",xfamily," 1849vs1854 "))
+	dev.off()
+	pdf(paste("../paper/figures/errbar_",plotname,"d.pdf",sep=""))
+		plot3(x1849,x1854,"SouthwarkVauxhall_Lambeth",paste("Next-16 Jointly-Supplied ",xfamily," 1849vs1854 "))
+	dev.off()
+	if (xfamily != "poisson") {         # Plot comparison for joint region only for Negative Binomial
+		pdf(paste("../paper/figures/errbar_",plotname,"e.pdf",sep=""))
+			plotcomp(x1849,x1854,"SouthwarkVauxhall",paste("First-12 Southwark-only ",xfamily," 1849vs1854 "))
+		dev.off()
+		pdf(paste("../paper/figures/errbar_",plotname,"f.pdf",sep=""))
+			plotcomp(x1849,x1854,"SouthwarkVauxhall_Lambeth",paste("Next-16 Jointly-Supplied ",xfamily," 1849vs1854 "))
+		dev.off()
+	}
+
+}
+
+
+```
+
+
+###Create Regression Data
+
+Now we create the we need for running count regressions, from Snow's Tables XII and VIII. This is the same as in the notebook *Snow1855_DiDRegression1.Rmd.
+
+
+```{r}
+x1 <- subset(tableviii,supplier == "SouthwarkVauxhall" | supplier == "SouthwarkVauxhall_Lambeth")
+x1849 <- x1[c("subDistrict","pop1851","supplier","lambethdegree")]
+x1 <- subset(tablexii,supplier == "SouthwarkVauxhall" | supplier == "SouthwarkVauxhall_Lambeth")
+x1849$deaths <- x1$deaths1849
+x1849$rate <- 10000 * x1$deaths1849 / x1849$pop1851
+x1849$seq <- c(seq(1,length(x1849$deaths)))
+#x1849$dum1854 <- 0
+xyear <- factor(c(rep(1849,28),rep(1854,28)))
+x1849$year <- xyear[1:28]
+x1854 <- x1849
+#x1849$lambethdegree <- "dirty"
+x1854$deaths <- x1$deaths1854
+x1854$rate <- 10000 * x1$deaths1854 / x1849$pop1851
+x1854$seq <- c(seq(1,length(x1849$deaths)))
+#x1854$dum1854 <- 1
+x1854$year <- xyear[29:56]
+
+regdata <- rbind(x1849,x1854)
+regdata
+```
+
+###1849 vs 1854 DiD, Poisson Regression
+
+Now we are ready for running regressions and plotting. First, basic Poisson regression with single treatment effect:
+
+$ln(Rate) = ln(Count) - ln(Population) = \mu + \delta 54*I(54) + \gamma*I(joint) + \beta*I(54)*I(joint) + \epsilon$
+
+* an overall constant ($\mu$)
+* a difference for 1854 ($\delta54$) 
+* a difference for joint "next 16" region ($\gamma$)
+* an interaction for 1854 and joint ($\beta$)
+
+
+```{r}
+# Poisson with single "Lambeth effect" and same rate for all sub-districts (no sub-district fixed effects)
+pois1single <- glm(regdata$deaths ~ regdata$supplier * regdata$year 
+	+ offset(log(regdata$pop1851)), family=poisson)
+summary(pois1single)
+
+```
+
+This regression calculates the same parameter as the simple table (`r round(pois1single$coefficients[4],4)`, from notebooks *Snow1855_DiDRegression1.Rmd* or *Snow1855_SimpleDID_QRCT.Rmd*). The Poisson regression says the *z value* is `r round(summary(pois1single)$coefficients[4,3],2)` but this is in fact a huge over-estimate. Graphing the actual versus fitted mortality rates by sub-district help to show why.
+
+```{r}
+xfamily <- preperrdata(pois1single,"single")  # this function modifies global data
+
+plot3(x1849,x1854,"SouthwarkVauxhall",paste("First-12 Southwark-only ",xfamily," 1849vs1854 "))
+plot3(x1849,x1854,"SouthwarkVauxhall_Lambeth",paste("Next-16 Jointly-Supplied ",xfamily," 1849vs1854 "))
+```
+
+The empty circles are the fitted with error bars; red circles are 1849; blue diamonds are 1854 (adjusted for year and treatment effects to be comparable with 1849). The first graph shows the "first-12" Southwark-onl sub-districs and the second the "next-12" jointly-supplied sub-districts. (The sequence numbers match the sequence or IDs in Table XII or Table VIII.) The error bars are estimated 95% limits assuming that the counts are Poisson-distributed (which is for all practical purposes the same as assuming counts are Binomial, generated from a Bernoulli process). Note that smaller sub-districts, such as Putney (ID 10, population 5,280) have wider error bars. 
+
+The problem is obvious from these graphs: the observed rates are almost all outside the error bars. There is simply too much variation, both across sub-districts and within sub-districts, to be consistent with a Poisson process with all sub-districts having the same mortality. 
+
+The regression statistic we need to use is the "Residual Deviance" which essentially measures the sum-of-squared differences between actual and predicted - larger when the data fit less well. This will be approximately chi-squared distributed, with 52 degrees of freedom in this case. The value is `r round(pois1single$deviance,1)` which is very large - the 5% right-tail quantile for a chi-squared with 52-degrees of freedom is `r round(qchisq(.95,52),1)` - a value larger than this will only be observed with 5% probability. A value of `r round(pois1single$deviance,1)` is far out in the right tail, with miniscule probability of being observed. In sum, it would be exceedinlgy unlikely to observe a Residual Deviance of `r round(pois1single$deviance,1)` if the data were Poisson-distributed - we can reject the hypothesis that the observed counts are generated by a Poisson process. 
+
+We have to abandon the assumption that rates are Poisson with a constant rate for all sub-districts. 
+
+Our regerssion equation is
+
+$ln(Rate) = ln(Count) - ln(Population) = \mu + \delta 54*I(54) + \gamma*I(joint) + \beta*I(54)*I(joint) + \epsilon$
+
+One direction we can go is to allow the mean rate $\mu$ to vary by sub-district: sub-district fixed effects. The other is to generalize the error process and allow $\epsilon$ to be other than Poisson-distributed: say Negative Binomial
+
+
+###1849 vs 1854 DiD, Poisson Regression with Fixed effects
+
+So our first generalization is sub-district fixed effects. Our data has a "subDistric" factor that we can use in our regression:
+
+```{r}
+# Poisson with single "Lambeth effect" and different rates by sub-district (fixed effects)
+pois2single <- glm(regdata$deaths ~ regdata$subDistrict + regdata$supplier * regdata$year 
+	+ offset(log(regdata$pop1851)), family=poisson)
+summary(pois2single)
+```
+
+We can plot this with our *plot3* function to examine the actual versus predicted.
+
+```{r}
+xfamily <- preperrdata(pois2single,"single")  # this function modifies global data
+
+plot3(x1849,x1854,"SouthwarkVauxhall",paste("First-12 Southwark-only ",xfamily," 1849vs1854 "))
+plot3(x1849,x1854,"SouthwarkVauxhall_Lambeth",paste("Next-16 Jointly-Supplied ",xfamily," 1849vs1854 "))
+```
+
+Now the individual sub-districts all have different rates. But still the data do not fit well. There are too many of the red circles or blue diamonds outside the error bars - there should only be 5% or roughly 3 out of 56. And the residual deviance, `r round(pois2single$deviance,1)` is still too large compared with the chi-squared (with 26 df) of `r round(qchisq(.95,26),1)` 
+
+###1849 vs 1854 DiD, Negative Binomial Regression
+
+Instead of allowing each sub-district to have its own, fixed, rate, we are going to take another direction. For our regression equation:
+
+$ln(Rate) = ln(Count) - ln(Population) = \mu + \delta 54*I(54) + \gamma*I(joint) + \beta*I(54)*I(joint) + \epsilon$
+
+we will allow the error $\epsilon$ to have a more general distribution, Negative Binomial in this case. A Negative Binomial distribution is actually a mixture of Poisson distributions but with the underling Poisson rate itself now random, chosen from a Gamma distribution. (See my working paper at https://papers.ssrn.com/abstract=3262234 and references there for more details.)
+
+```{r}
+# Negative Binomial with single "Lambeth effect" 
+nb1single <- glm.nb(regdata$deaths ~ regdata$supplier * regdata$year 
+	+ offset(log(regdata$pop1851)))
+summary(nb1single)
+```
+
+One thing we want to immediately note is the Residual Deviance is only `r round(nb1single$deviance,1)` which is well below the 5% right-tail quantile of `r round(qchisq(.95,52),1)`, meaning that such a value would not be unusual for Negative Binomial counts. (In fact the right-tail probability is  `r round(1-pchisq(nb1single$deviance,52),3)`.)
+
+```{r}
+xfamily <- preperrdata(nb1single,"single")  # this function modifies global data
+
+plot3(x1849,x1854,"SouthwarkVauxhall",paste("First-12 Southwark-only ",xfamily," 1849vs1854 "))
+plot3(x1849,x1854,"SouthwarkVauxhall_Lambeth",paste("Next-16 Jointly-Supplied ",xfamily," 1849vs1854 "))
+```
+
+The graphs show exactly what is hapenning: the error bars are wide and capture all except perhaps 3 of our observed values - close to what we would expect for 95% confidence bands. 
+
+
