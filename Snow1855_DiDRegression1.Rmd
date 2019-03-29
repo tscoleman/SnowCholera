@@ -11,15 +11,26 @@ output: html_notebook
 
 ### Introduction
 
-This worksheet performs linear and count regressions for 1849 versus 1854 data
+This notebook performs linear and count regressions for 1849 versus 1854 data and builds on the discussion and data in the notebook "Snow1855_SimpleDiD_QRCT" - read that first. 
 
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+For a brief introduction to Snow's work, see:
 
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
++ **Snow's original 1855 monograph** (it is masterful): Snow, John. 1855. *On the Mode of Communication of Cholera*. 2nd ed. London: John Churchill. http://archive.org/details/b28985266.
++ **The best popular exposition I have found**: Johnson, Steven. 2007. *The Ghost Map: The Story of London’s Most Terrifying Epidemic--and How It Changed Science, Cities, and the Modern World*. Reprint edition. New York: Riverhead Books.
++ **Another good popular version**: Hempel, Sandra. 2007. *The Strange Case of the Broad Street Pump: John Snow and the Mystery of Cholera*. First edition. Berkeley: University of California Press.
++ **Tufte's classic discussion of Snow's mapping** (a topic I don't cover here): Tufte, Edward R. 1997. *Visual Explanations: Images and Quantities, Evidence and Narrative*. 1st edition. Graphics Press.
+
+
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. The results are also saved in a self-contained html document with the suffix *.nb.html*. If you want pure r code (for example to run outside RStudio) you can easily extract code with the command *knit('notebook.Rmd',tangle=TRUE)* which will save a file 'notebook.R' under your working directory.
+
+Try executing the chunk below by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
 
 **NB: We need the data and some of the calculations from the notebook 'Snow1855_DiDRegression1.Rmd' so we execute this little hack to extract the R code from that sheet, write a new .R file, and then source that here**
 ``````{r message=FALSE, results='hide'}
+library(knitr)
+options(scipen=5)
 knit('Snow1855_SimpleDiD_QRCT.Rmd', tangle=TRUE)
 source('Snow1855_SimpleDiD_QRCT.R') 
 # The following libraries are used for the Negative Binomial regression and the robust standard error analysis
@@ -48,14 +59,14 @@ kable(diff_in_diffs_Level,digits=2,caption="Diff-in-Diffs, Levels (rate per 10,0
 kable(diff_in_diffs_Log,digits=3,caption="Diff-in-Diffs, Levels (rate per 10,000)",format='pandoc')
 ```
 
-This table looks very simple, but when we examine the original data (Snow's Table XII) we see many sub-districts and considerable variation across sub-districts. Looking only at the first two sub-districts in 1849, for example, `r tablexii[1,1]` has mortality of `r round(tablexii[1,6],1)` while `r tablexii[2,1]` has mortality of `r round(tablexii[2,6],1)`. We need some statistical framework to incorporate and analyze this variability. 
+This table looks very simple, and with a population of over 450,000 (`r popSouthwarkVauxhall` in the "first-12" and `r popSouthwarkVauxhall_Lambeth` in the "next-16") we would think the estimate of `r round(diff_in_diffs_Log[3,3],3)` would be precisely estimated. But but when we examine the original data (Snow's Table XII) we see there is considerable variation across sub-districts. Looking only at the first two sub-districts in 1849, for example, `r tablexii[1,1]` has mortality of `r round(tablexii[1,6],1)` while `r tablexii[2,1]` has mortality of `r round(tablexii[2,6],1)`. We cannot simply highlight and exploit the variability between the aggregate "first-12" and "next-16" sub-districts while ignoring the variability across and within sub-districts. We need some statistical framework to incorporate and analyze the variability within and across sub-districts. 
 
 ```{r}
 tablexii[,c(1,2,3,4,6,7)]
 ```
 
 
-For a start we can consider the following equation, which puts the difference-in-differences table above into equation form but also allows multiple sub-districts - each sub-district having its own rate, etc.:
+For a reasonable statistical framework we can consider the following equation, which puts the difference-in-differences table above into equation form but also allows multiple sub-districts - each sub-district having its own rate, etc.:
 
 $ln(Rate) = \mu + \delta 54*I(54) + \gamma*I(joint) + \beta*I(54)*I(joint) + \epsilon$
 
@@ -204,12 +215,27 @@ nb2bothrobustse <- coeftest(nb2both, vcov = vcovHC(nb2both))
 #logLik(nb2both)
 #print(coeftest(nb2both, vcov = vcovHC(nb2both)))
 
-# Show results for the Negative Binomial with two Lambeth effects
+# Show results for the Negative Binomial with one Lambeth effect
 summary(nb1single)
 
 ```
 
-The negative binomial is reasonably good at fitting the observed sub-district variability: the Residual Deviance is now `r round(nb1single$deviance,1)` which is small enough to not reject this regression. As a result we can have some confidence that the standard errors reported are realistic. For this regression the single Lambeth effect is modestly significant, with a z value of `r round(summary(nb1single)$coefficients[4,3],2)`. (Note that when we measure the effect separating sub-districts into "more" and "less" Lambeth coverage, the "more Lambeth" effect is highly significant. That result is summarized in the tables just following. When we introduce the population data published in 1856 (another notebook and my working paper) we find an overhwelmingly strong Lambeth effect.)
+The negative binomial is reasonably good at fitting the observed sub-district variability: the Residual Deviance is now `r round(nb1single$deviance,1)` which is small enough to not reject this regression. As a result we can have some confidence that the standard errors reported are realistic. For this regression the single Lambeth effect is modestly significant, with a z value of `r round(summary(nb1single)$coefficients[4,3],2)`.
+
+#####Two "Lambeth effects"
+
+Snow noted that four of the "next-16" jointly-supplied sub-districts had a higher proportion of Lambeth customers than the others: “In certain sub-districts, where I know that the supply of the Lambeth Water Company is more general than elsewhere, as Christchurch, London Road, Waterloo Road 1st, and Lambeth Church 1st, the decrease of mortality in 1854 as compared with 1849 is greatest, as might be expected.” (Snow 1855 p. 89) We can incorporate this by having two indicator variables, the variable "lambethdegree" with "less Lambeth" and "more Lambeth". 
+
+
+```{r}
+
+# Show results for the Negative Binomial with two Lambeth effects
+summary(nb1both)
+
+```
+
+The effect for "more Lambeth" is large (`r round(summary(nb1both)$coefficients[6,1],3)`, ratio effect `r round(exp(-summary(nb1both)$coefficients[6,1]),3)`) and highly significant (z value `r round(summary(nb1both)$coefficients[6,3],3)`). When we introduce the population data published in 1856 (another notebook and my working paper) we find an even stronger Lambeth effect.
+
 
 
 ###Creating Tables for Results
@@ -297,4 +323,46 @@ regtablepoiss <- as.data.frame(regtablepoiss)
 #regtablelin
 #regtablepoiss
 ```
+
+
+***
+***
+
+###Digression on Binomial, Poisson, and Negative Binomial
+
+For more detail on count regressions see my working paper "Causality in the Time of Cholera" working paper at https://papers.ssrn.com/abstract=3262234 and references there. But here are some notes
+
+For binomial:
+
+* Rate = Count / n = Mean / n = p
+* Mean = count = n\*p
+* Variance(count) = n\*p\*(1-p) => Std dev = sqrt(n\*p\*(1-p)) ~ sqrt(count) = sqrt(n\*p)  (since p is small for this application)
+* Std dev (rate) ~ sqrt(count)/n = sqrt(p)\*sqrt(n)/n = sqrt(p) / sqrt(n)
+
+For Poisson (which is good approx to binomial for low intensities):
+
+* Rate = count / n = rate
+* Mean(count) = count = n\*rate
+* Variance(count) = n\*rate => Std dev = sqrt(n\*rate) = sqrt(count) 
+* Std dev (rate) = sqrt(count)/n = sqrt(rate)\*sqrt(n)/n = sqrt(rate) / sqrt(n)
+
+Mixing with Gamma(k,k):
+
+* Gamma(a,b): Mean=a/b, Var=a/b^2
+* Gamma(k,k): Mean=1, Var=1/k
+* Poisson(mu) mixed with Gamma(k,k) -> Mean = mu & variance mu/k or mu + mu^2/k ?
+
+It looks like for the R glm.nb the variance is mu + mu^2/theta ?? I think this is
+
+*   mean = rate \* pop
+*   variance = mean + mean^2 / theta = rate\*pop + (rate\*pop)^2/theta
+*  => stdev of rate = sqrt(variance(count)) / pop = sqrt(rate/pop + rate^2/theta)
+
+Example:
+
+*  Estimate neg binom const = -4.35 => rate=exp(-4.35)=.012907, theta = 5.51
+*  For pop = 20,000:
+*    Poisson stdev(rate) = sqrt(.0129/20000) = .0008 (8 per 10,000)
+*    Neg binom stdev(rate) = sqrt(.0129/20000 + .0129^2/5) = .005828 (58 per 10,000)
+
 
