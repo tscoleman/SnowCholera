@@ -11,18 +11,26 @@ output: html_notebook
 
 ### Introduction
 
-This worksheet performs simple calculations using Snow's 1855 data:
+This notebook performs simple calculations using Snow's 1855 data:
 
 * A simple difference-in-differences table comparing mortality rates across regions and across time. (Snow compared counts in Table XII but for some reasons did not then convert to mortality rates.)
 
-* A quasi randomised comparison of mortality rates per household which Snow showed in his Table IX. This compares Southwark-supplied versus Lambeth-supplied customers but at a highly aggregated level (the full south London area).
+* A quasi randomized comparison of mortality rates per household which Snow showed in his Table IX. This compares Southwark-supplied versus Lambeth-supplied customers but at a highly aggregated level (the full south London area).
 
-* A simple extension of Snow's Table IX using imputed housing and popuation for comparing only the sub-districts jointly supplied by Southwark & Vauxhall and Lambeth. 
+* A simple extension of Snow's Table IX using imputed housing and population for comparing only the sub-districts jointly supplied by Southwark & Vauxhall and Lambeth. 
+
+For a brief introduction to Snow's work, see:
+
++ **Snow's original 1855 monograph** (it is masterful): Snow, John. 1855. *On the Mode of Communication of Cholera*. 2nd ed. London: John Churchill. http://archive.org/details/b28985266.
++ **The best popular exposition I have found**: Johnson, Steven. 2007. *The Ghost Map: The Story of London’s Most Terrifying Epidemic--and How It Changed Science, Cities, and the Modern World*. Reprint edition. New York: Riverhead Books.
++ **Another good popular version**: Hempel, Sandra. 2007. *The Strange Case of the Broad Street Pump: John Snow and the Mystery of Cholera*. First edition. Berkeley: University of California Press.
++ **Tufte's classic discussion of Snow's mapping** (a topic I don't cover here): Tufte, Edward R. 1997. *Visual Explanations: Images and Quantities, Evidence and Narrative*. 1st edition. Graphics Press.
 
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
 
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. The results are also saved in a self-contained html document with the suffix *.nb.html*. If you want pure r code (for example to run outside RStudio) you can easily extract code with the command *knit('notebook.Rmd',tangle=TRUE)* which will save a file 'notebook.R' under your working directory.
+
+Try executing the chunk below by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
 
 ```{r}
 rm(list=ls())    # starts a fresh workspace
@@ -39,11 +47,13 @@ tablexii <- read.csv(file="Snow1855_TableXII.csv", header=TRUE, sep=",", skip=5,
 
 ###Comparing 1849 to 1854 rates
 
-In Table XII Snow sub-totals deaths by Southwark-only ("first 12"), jointly-supplied ("next 16)" and Lambeth-only ("last 4") sub-districts and then compares them (p. 89). But Snow's comparison of *counts* mixes differences in populations with differences in underlying mortality, and the comparison is more clear comparing *rates*. The next chunk of code compares rates. (This is one instance where I think Snow missed a good opportunity to make his point more clearly and strongly.)
+In South London, south of the Thames around Battersea and Southwark, customers were supplied by two water companies: the Southwark & Vauxhall Water Company and the Lambeth Water Company. Snow recognized that a fortuitous set of circumstances - the Lambeth Water Company moving its water source upstream to a clean location in 1852 while the Southwark & Vauxhall Company continued to draw contaminated water from low down in the Thames - provided precisely the variation needed to test for the effect of dirty versus clean water. 
+
+In Table XII Snow sub-totals deaths by Southwark-only ("first 12"), jointly-supplied ("next 16", some customers jointly by Southwark & Vauxhall, others by Lambeth) and Lambeth-only ("last 4") sub-districts and then compares them (p. 89). But Snow's comparison of *counts* mixes differences in populations with differences in underlying mortality, and the comparison is more clear comparing *rates*. The next chunk of code compares rates. (This is one instance where I think Snow missed a good opportunity to make his point more clearly and strongly.)
 
 The code here subsets and sums across sub-districts to get the three "regions": 
 
-* Southwark & Vuaxhall supplied ("first 12")
+* Southwark & Vauxhall supplied ("first 12")
 * Jointly-supplied (Southwark and Lambeth, "next 16")
 * Lambeth-only ("last 4")
 
@@ -137,13 +147,17 @@ kable(diff_in_diffs_Log,digits=4,caption="Diff-in-Diffs, Logs",format='pandoc')
 
 Clean water effect in ratio terms - Expressed as decrease (Southwark -> Lambeth) and increase (Lambeth -> Southwark) - is: `r round(c(exp(diff_in_diffs_Log[3,3]),exp(-diff_in_diffs_Log[3,3])),3)`.
 
-In additional notebooks I extend this analsis. One set of notebooks discuss count regressions for diff-in-diffs. This provides the statistical framework for incorporating the sub-district variability we see in Snow's Table XII. A second set of notebooks builds on the sub-district population data published in Snow's 1856 "Cholera and the water supply in the south district of London in 1854" for more detailed analysis of the 1849 versus 1854 data. 
+In additional notebooks I extend this analysis. One set of notebooks discuss count regressions for diff-in-diffs. This provides the statistical framework for incorporating the sub-district variability we see in Snow's Table XII. A second set of notebooks builds on the sub-district population data published in Snow's 1856 "Cholera and the water supply in the south district of London in 1854" for more detailed analysis of the 1849 versus 1854 data. 
 
 ### Quasi-Randomized Comparison: Southwark & Vauxhall versus Lambeth Customers
 
+Snow recognized the value of randomization for answering scientific questions, and he recognized that the mixing of Southwark & Vauxhall customers with Lambeth customers in South London provided a "Grand Experiment" to test the effect of dirty versus clean water:
+
+> The experiment too, was on the grandest scale. No fewer than three hundred thousand people of both sexes, of every age and occupation, and of every rank and station, from gentlefolks down to the very poor, were divided into two groups without their choice, and, in most cases, without their knowledge; one group being supplied water containing the sewage of London, and amongst it, whatever might have come from the cholera patients, the other group having water quite free from such impurity.
+
 For a direct comparison of Southwark & Vauxhall versus Lambeth customers, Snow needed more than just the aggregate death counts from the Registrar-General: "All that was required [for direct comparison] was to learn the supply of water to each individual house where a fatal attack of cholera might occur" (Snow, 1855, p. 75) Snow was the father of "shoe-leather epidemiology" and he visited every household to determine the water supply himself. (This is a wonderful story and Snow tells it on page 76 and following. He had assistance from Mr. John Joseph Whiting, L.A.C for the "first 12" Southwark-only sub-districts since some houses were supplied by pump-wells instead of the Southwark & Vauxhall Company.) 
 
-In Table VIII Snow reports the deaths assigned to water supply (Soutwhark & Vauxhal Company, Lambeth Company, Other (e.g. pump-wells)) for the first seven weeks of the 1854 epidemic (ending 26th August). To appropriately compare mortality across the suppliers Snow needed the population-at-risk. The best he could do (in his 1855 publication) was houses for the whole region: a report to Parliament showed the number of houses supplied by each company, not split out by sub-district (see Snow 1855 p. 78). 
+In Table VIII Snow reports the deaths assigned to water supply (Southwark & Vauxhall Company, Lambeth Company, Other (e.g. pump-wells)) for the first seven weeks of the 1854 epidemic (ending 26th August). To appropriately compare mortality across the suppliers Snow needed the population-at-risk. The best he could do (in his 1855 publication) was houses for the whole region: a report to Parliament showed the number of houses supplied by each company, not split out by sub-district (see Snow 1855 p. 78). 
 
 These data allowed a direct comparison between Southwark versus Lambeth customers, but only at the aggregate level, summing across all sub-districts. Snow reports this in Table IX. 
 
@@ -152,7 +166,7 @@ These data allowed a direct comparison between Southwark versus Lambeth customer
 tableix
 ```
 
-We can actually do a little better. We can impute the approximate number of houses (and population) separately for the "first 12" Soutwhark-supplied sub-districts versus the "next 16" jointly-supplied sub-districts. Customers (houses) are mixed within the jointly-supplied sub-districts, so focusing the comparison on those 16 sub-districts is a more precise comparison of mortality between the two suppliers.
+We can actually do a little better. We can impute the approximate number of houses (and population) separately for the "first 12" Southwark-supplied sub-districts versus the "next 16" jointly-supplied sub-districts. Customers (houses) are mixed within the jointly-supplied sub-districts, so focusing the comparison on those 16 sub-districts is a more precise comparison of mortality between the two suppliers.
 
 First, we need to approximate the total number of houses in the different regions, which we do by assuming that the housing density (people per house) is constant across all sub-districts. The overall density is `r round((popSouthwarkVauxhall+popSouthwarkVauxhall_Lambeth+popLambeth) / (tableix[1,2]+tableix[2,2]),2)`. We then distribute the total houses (`r tableix[1,2]+tableix[2,2]`) across the "first-12", "next-12" and "last-4":
 
@@ -252,9 +266,9 @@ We want to focus on the second column, the "next-16" jointly-supplied sub-distri
 
 The result simply reinforces Snow's conclusion: focusing on the "next-16" jointly-supplied sub-districts the difference between Southwark & Vauxhall customers versus Lambeth customers is still dramatically large: a factor of 7.6.
 
-We could do the same analsis for Table VII (the first 4 weeks of the 1854 outbreak). The code chunk below performs those calculations but does not print the results. 
+We could do the same analysis for Table VII (the first 4 weeks of the 1854 outbreak). The code chunk below performs those calculations but does not print the results. 
 
-In another notebook I examine the population data by sub-district that Snow published in his 1856 "Cholera and the water supply in the south district of London in 1854". With that data we can compare between Southwark & Vauxhall versus Lambeth Companies at the sub-district level. We see with those data that our approximations and imputations for the houses are not perfect, and in particularl we have to incorporate the "Other" category of water supply (e.g. pump-wells) because there are some sub-districts with very few water company customers. 
+In another notebook I examine the population data by sub-district that Snow published in his 1856 "Cholera and the water supply in the south district of London in 1854". With that data we can compare between Southwark & Vauxhall versus Lambeth Companies at the sub-district level. We see with those data that our approximations and imputations for the houses are not perfect, and in particular we have to incorporate the "Other" category of water supply (e.g. pump-wells) because there are some sub-districts with very few water company customers. 
 
 ```{r results='asis'}
 # --- TABLE VII - 4 weeks ending 26th August ---
