@@ -10,7 +10,7 @@ output: html_notebook
 
 ### Introduction
 
-This is the first, introductory worksheet for my [John Snow project](http://www.hilerun.org/econ/papers/snow). This sheet reads in selected data from John Snow 1855, "On the mode of communication of cholera", (data from the .pdf at http://archive.org/details/b28985266 ) and performs some simple cross-checking: comparing row-sums against Snow's reported totals. 
+This is the first, introductory notebook for my [John Snow project](http://www.hilerun.org/econ/papers/snow). This sheet reads in selected data from John Snow 1855, "On the mode of communication of cholera", (data from the .pdf at http://archive.org/details/b28985266 ) and performs some simple cross-checking: comparing row-sums against Snow's reported totals. 
 
 The four tables I use from Snow 1855 are:
 
@@ -22,10 +22,17 @@ The four tables I use from Snow 1855 are:
 
 * Table XII p. 90: Deaths 1849 & 1854 by sub-district. For 1854 through October 21 (versus through August 26 for Table VIII)
 
+For a brief introduction to Snow's work, see:
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
++ **Snow's original 1855 monograph** (it is masterful): Snow, John. 1855. *On the Mode of Communication of Cholera*. 2nd ed. London: John Churchill. http://archive.org/details/b28985266.
++ **The best popular exposition I have found**: Johnson, Steven. 2007. *The Ghost Map: The Story of London’s Most Terrifying Epidemic--and How It Changed Science, Cities, and the Modern World*. Reprint edition. New York: Riverhead Books.
++ **Another good popular version**: Hempel, Sandra. 2007. *The Strange Case of the Broad Street Pump: John Snow and the Mystery of Cholera*. First edition. Berkeley: University of California Press.
++ **Tufte's classic discussion of Snow's mapping** (a topic I don't cover here): Tufte, Edward R. 1997. *Visual Explanations: Images and Quantities, Evidence and Narrative*. 1st edition. Graphics Press.
 
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. The results are also saved in a self-contained html document with the suffix *.nb.html*. If you want pure r code (for example to run outside RStudio) you can easily extract code with the command *knit('notebook.Rmd',tangle=TRUE)* which will save a file 'notebook.R' under your working directory.
+
+Try executing the chunk below by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
 
 ```{r}
 rm(list=ls())    # starts a fresh workspace
@@ -52,7 +59,7 @@ Check Table VII. Snow's published tables show the total in the last row for each
 colSums(tablevii[,2:8]) - 2*tablevii[nrow(tablevii),2:8]
 ```
 
-Check Table VIII. Again, the the sum of all rows should be twice the last row. The following should be zero.  
+Check Table VIII. Again, the sum of all rows should be twice the last row. The following should be zero.  
 
 ```{r}
 colSums(tableviii[,2:8]) - 2*tableviii[nrow(tableviii),2:8]
@@ -64,7 +71,7 @@ We can check the population sub-totals in Table VIII (for "first 12", "next 16" 
 * Next 16 (joint Southwark & Vauxhall and Lambeth) 301,149
 * + This seems to be a typo in Snow's Table VI and should read 300,149 so the comparison will be off by 1,000
 * Last 3 (Lambeth excluding Sydenham)  14,632
-* + Sydenham is 4,501 so the comparison will be off by this amoount
+* + Sydenham is 4,501 so the comparison will be off by this amount
 
 
 ```{r}
@@ -79,7 +86,7 @@ Table XII has deaths for 1849 and 1854 by sub-district. We can check as follows:
 * Subset by "SouthwarkVauxhall", "SouthwarkVauxhall_Lambeth", "Lambeth" to get the "first 12", "next 16", and "final 4" sub-districts
 * Sum over these subsets
 * Snow reports these sub-totals in the last three rows of Table XII
-* The follwing check will show zeros when the sums over the sub-setted data equal the reported sub-totals
+* The following check will show zeros when the sums over the sub-setted data equal the reported sub-totals
 
 
 ```{r}
