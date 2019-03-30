@@ -1,0 +1,461 @@
+---
+title: "John Snow Project - 1856 Table VI and DiD Extension"
+author: "[Thomas Coleman](http://www.hilerun.org/econ)"
+output: html_notebook
+---
+# Examining Snow's 1856 Table VI - Predicted Mortality and Diff-in-Diffs with Population Data
+
+#### See "Causality in the Time of Cholera" working paper at https://papers.ssrn.com/abstract=3262234 and my [John Snow project website](http://www.hilerun.org/econ/papers/snow)
+
+#### This notebook is licensed under the [BSD 2-Clause License](https://opensource.org/licenses/BSD-2-Clause)
+
+### Introduction
+
+This notebook examines Table VI from Snow's 1856 "Cholera and the water supply in the south district of London in 1854" and extends the analysis using a difference-in-differences framework. 
+
+With population data by sub-district and by water supply company (originally published in Simon 1856, "Report on the last two cholera-epidemics of London"), Snow was able to compare mortality at the sub-district level more closely than he could in his 1855 "On the mode of communication ...". In Table VI Snow used estimates of mortality rates for Southwark & Vauxhall versus Lambeth, combined with population fractions by sub-district, to calculate population-weighted predicted mortality by sub-district. Snow's goal was to show that differences in water supply was the predominant factor - more important than crowding or other factors - in accounting for differences across sub-districts. 
+
+Snow, however, did not have the statistical tools and methodlogy available to us today, and his argument had neither the clarity nor the rigor we would demand today. This notebook first examines Snow's Table VI (as published) and discusses the error structure across sub-districts in some detail. This helps to explain why a simple approach (such as a paired *t*-test) is not appropriate for these count data. 
+
+I then turn to a more appropriate statistical approach: regression that uses the population by sub-district and water company to simultaneously estimate and test differences across the water companies (and across time). The conclusion (not surprisingly) overwhelmingly supports Snow's contention that dirty versus clean water is the most important factor in accounting for differences across sub-districts (and across time). As a digression I examine earlier efforts in the literature to address and extend Snow's Table VI, discussing why those efforts fall short. 
+
+
+For a brief introduction to Snow's work, see:
+
++ **Snow's original 1855 monograph** (it is masterful): Snow, John. 1855. *On the Mode of Communication of Cholera*. 2nd ed. London: John Churchill. http://archive.org/details/b28985266.
++ **The best popular exposition I have found**: Johnson, Steven. 2007. *The Ghost Map: The Story of London’s Most Terrifying Epidemic--and How It Changed Science, Cities, and the Modern World*. Reprint edition. New York: Riverhead Books.
++ **Another good popular version**: Hempel, Sandra. 2007. *The Strange Case of the Broad Street Pump: John Snow and the Mystery of Cholera*. First edition. Berkeley: University of California Press.
++ **Tufte's classic discussion of Snow's mapping** (a topic I don't cover here): Tufte, Edward R. 1997. *Visual Explanations: Images and Quantities, Evidence and Narrative*. 1st edition. Graphics Press.
+
+
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. The results are also saved in a self-contained html document with the suffix *.nb.html*. If you want pure r code (for example to run outside RStudio) you can easily extract code with the command *knit('notebook.Rmd',tangle=TRUE)* which will save a file 'notebook.R' under your working directory.
+
+Try executing the chunk below by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+``````{r message=FALSE, results='hide'}
+rm(list=ls())    # starts a fresh workspace
+#
+library(knitr)
+options(scipen=5)
+# The following libraries are used for the Negative Binomial regression and the robust standard error analysis
+#install.packages("sandwich")
+#install.packages("lmtest")
+library("MASS")
+library("sandwich") 
+library("lmtest") 
+
+# Read in the data from Snow 1855 "On the mode of communication of cholera"
+tablevii <- read.csv(file="Snow1855_TableVII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+tableviii <- read.csv(file="Snow1855_TableVIII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+tableix <- read.csv(file="Snow1855_TableIX.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+tablexii <- read.csv(file="Snow1855_TableXII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+
+# Read in the data from John Snow 1856, "Cholera and the water supply in the south district of London in 1854", 
+#   These data were copied from the 1936 book "Snow on cholera, being a reprint of two papers" edited by Frost
+# Table V by District (for running Poisson & Neg Binomial count regressions)
+# Table VI by sub-district (for running Koch & Denike's tests)
+
+# Table I "Showing the results of the Author's personal Inquiry into Twenty-One Sub-Districts"
+# Table II "Showing the results of Inquiry made by Mr. Whiting in Eleven Sub-Districts"
+# (My "tablei_1856" combines Snow's Tables I & II)
+
+tablei_1856 <- read.csv(file="Snow1856_TableI.csv",
+  header=TRUE, sep=",", skip=5,comment.char="#")
+
+tableV_1856 <- read.csv(file="Snow1856_TableV.csv",
+  header=TRUE, sep=",", skip=5,comment.char="#")
+tableVI_1856 <- read.csv(file="Snow1856_TableVI.csv",
+  header=TRUE, sep=",", skip=5,comment.char="#")
+
+
+```
+
+###Check Snow's Calculations for Table VI
+
+There are a few rounding errors in Snow's Table VI, for items such as "mortality_1854" (the calculated mortality rate per 10,000 for 1854). The input .csv file has Snow's original entries but we can also recalculate the calculated and predicted entries and compare. The result of the code chunk below is a datafram "xcompare" that has the differences between Snow's entry and the (rounded) calculation. Most are zero. The only real error is the projected mortality rate for Southwark, Christchurch which Snow reports as 57 while it should be 51.0. 
+
+For references, the calculated entries are:
+
+* "pop_combined" (estimated population for Southwark & Vauxhal and Lambeth customers combined) - no errors. Note that this population may be substantially less than the overall population, presumably because there are customers not served by a water company
+* "mortality_1854" - mortality rate per 10,000, a few rounding errors
+* "deaths_Southwark_projected_rate160" - number of deaths for Soutwhark customers projected using population and mortality rate of 160 per 10,000
+* "deaths_Lambeth_projected_rate27" - number of deaths for Lambeth customers projected using population and mortality rate of 27 per 10,000
+* "deaths_projected_combined" - Southwark and Lambeth deaths combined
+* "mortality_projected" - the combined deaths divided by the combined population
+
+
+```{r}
+# Calculate data and print out differences between Snow's reported data and re-calculated fractions, etc.
+# There are a number of minor differences, primarily rounding errors. 
+
+tableVI_1856$pop_combined_calc = tableVI_1856$pop_southwark + tableVI_1856$pop_lambeth 
+tableVI_1856$mortality_1854_calc = 10000 * tableVI_1856$deaths_1854 / tableVI_1856$pop1851
+tableVI_1856$deaths_Southwark_projected_rate160_calc = 160 * tableVI_1856$pop_southwark / 10000
+tableVI_1856$deaths_Lambeth_projected_rate27_calc = 27 * tableVI_1856$pop_lambeth / 10000
+tableVI_1856$deaths_projected_combined_calc = tableVI_1856$deaths_Southwark_projected_rate160_calc +
+	tableVI_1856$deaths_Lambeth_projected_rate27_calc
+tableVI_1856$mortality_projected_calc = 10000 * tableVI_1856$deaths_projected_combined_calc /
+	tableVI_1856$pop_combined_calc
+
+xcompare <- tableVI_1856[c("subDistrict","pop_combined","mortality_1854","deaths_Southwark_projected_rate160",
+	"deaths_Lambeth_projected_rate27","deaths_projected_combined","mortality_projected")]
+
+xcompare$pop_combined <- round(tableVI_1856$pop_combined - tableVI_1856$pop_combined_calc,digits=0)
+xcompare$mortality_1854 <- round(tableVI_1856$mortality_1854 - tableVI_1856$mortality_1854_calc,digits=0)
+xcompare$deaths_Southwark_projected_rate160 <- round(tableVI_1856$deaths_Southwark_projected_rate160 - tableVI_1856$deaths_Southwark_projected_rate160_calc,digits=0)
+xcompare$deaths_Lambeth_projected_rate27 <- round(tableVI_1856$deaths_Lambeth_projected_rate27 - tableVI_1856$deaths_Lambeth_projected_rate27_calc,digits=0)
+xcompare$deaths_projected_combined <- round(tableVI_1856$deaths_projected_combined - tableVI_1856$deaths_projected_combined_calc,digits=0)
+xcompare$mortality_projected <- round(tableVI_1856$mortality_projected - tableVI_1856$mortality_projected_calc,digits=0)
+
+```
+#####Snow's Table VI with original and re-calculated entries
+```{r}
+tableVI_1856
+```
+#####Comparision of Snow's entries versus re-calculated
+```{r}
+xcompare
+```
+
+###Snow's Comparison of Actual vs Predicted Mortality
+####An (Inappropriate) Paired *t*-test
+
+Snow's goal with Table VI was to show that the difference in mortality was driven primarily by the difference in mortality for Southwark & Vauxhall customers versus Lambeth customers. He had the actual mortality by sub-district ("mortality_1854" in the .csv). He calculated a population-weighted mortality rate for each sub-district by calculating the counts for both suppliers and each sub-district and combining them. This is labeled "mortality_projected" (for Snow's original entry) and "mortality_projectd_calc" for the number calculated and reported to more decimals. 
+
+Snow's argument is that these two, actual and predicted mortality, were close: 
+
+>"it will be observed that the calculated mortality bears a very close relation to the real mortality in each subdistrict. ... and proves the overwhelming influence which the nature of the water supply exerted over the mortality, overbearing every other circumstance which could be expected to affect the progress of the epidemic. ... [This] probably supplies a greater amount of statistical evidence than was ever brought to bear on a medical subject."
+
+```{r}
+tableVI_1856[c("subDistrict","seq_1855","mortality_1854","mortality_projected","mortality_projected_calc")]
+```
+
+We need a more formal method for comparing the actual versus predicted. As a first (but ultimately incorrect) approach let us try a paired *t*-test: for each sub-district calculate the difference between actual and predicted and test whether the average across all sub-districts is different from zero. We need to do this for mortality *rates* rather than counts because the populations can be quite different: Snow is comparing the overall sub-district mortality against a prediction based on only Southwark and Lambeth supplied customers, a population that may be lower. 
+
+For example for Putney the overall population is 5,280 while the estimated combined Southwark plus Lambeth population is only 74: many houses were supplied by pump-wells or the Thames. For Kennington 1st the total population is 24,261 while the combined Southwark and Lambeth population is only 18,483. The total observed count (total population 24,261) is 305, giving an estimated mortality rate of 125.7 per 10,000. If we apply the rate of 125.7 to the Southwark and Lambeth population (18,483) we would have an expected count of only 232.2. Comparing 305 versus 232.2 is a difference of 72.7 but this reflects only differing population size and not underlying mortality or infection; the rates are identical.
+
+If we nonetheless go ahead and perform a paired *t*-test on the differences in rates, we find that the differences are not significant. 
+
+```{r}
+trates <- t.test(tableVI_1856$mortality_1854_calc[1:31],tableVI_1856$mortality_projected_calc[1:31],paired=TRUE)
+print(trates)
+
+```
+
+The *t*-ratio for the paired differences is `r round(trates$statistic,2)`, which is not significant. The reason is that the mean (`r round(mean(tableVI_1856$mortality_1854_calc[1:31] - tableVI_1856$mortality_projected_calc[1:31]),2)`) is relatively small compared to the standard deviation for the paired differences (`r round(sd(tableVI_1856$mortality_1854_calc[1:31] - tableVI_1856$mortality_projected_calc[1:31]),2)`). (Remember that the *t*-ratio is the ratio of the mean to the *standard error*, or the standard deviation divided by square-root degrees of freedom, $\sqrt{`r trates$parameter`}$.)
+
+
+####Graphs of Error Structure
+
+Graphs make the point more clearly. The following shows the difference in mortality (actual less predicted) with approximate 95% confidence bands *assuming that the differences are normal and drawn from a common distribution*. The paired *t*-test assumes that the observations are all normal, so the differences are normal, and all with a common variance. 
+
+
+
+
+
+```{r}
+# Function to plot difference in mortality rates and approximate 95% intervals
+plotdiff_stderr <- function(yseq, xdiff,xstderr,title,spread=0) {            
+	xplot <- plot(xdiff, yseq,
+	    xlim=range(c(xdiff, -1.96*xstderr,1.96*xstderr,spread)),
+	    ylim=rev(range(yseq)), col="red",
+	    main=title,xlab="Difference in Mortality Rates, approx error bars",ylab="sub-district",
+	    pch=19)
+	# horizontal error bars
+	xplot <- arrows(-1.96*xstderr, yseq, 1.96*xstderr, yseq, length=0.05, angle=90, code=3,lty=3)
+	xplot
+}
+
+yseq <- tableVI_1856[1:31,]$seq_1855
+#xexcl_Putney <- c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,26,28,29,30,31)
+
+# Calculate difference in mortality rates
+xdiff <- tableVI_1856$mortality_1854_calc[1:31]-tableVI_1856$mortality_projected_calc[1:31]
+
+# Calculate the standard error for just a standard paired t-test:
+xm <- mean(tableVI_1856$mortality_1854_calc[1:31]-tableVI_1856$mortality_projected_calc[1:31])
+xs <- sd(tableVI_1856$mortality_1854_calc[1:31]-tableVI_1856$mortality_projected_calc[1:31])
+xstderr_ttest <- xs 
+
+# Calculate the standard error assuming each sub-district is Poisson.
+# We will graph this in the next chunk of code, but we need it here to get the x-scale
+#   for this graph (so they all match)
+# 1854 mortality rate divided by 1851 population (for calculating standard error)
+x1 <- (tableVI_1856$mortality_1854_calc[1:31] / tableVI_1856$pop1851[1:31]) / 10000
+# Mortality rate for Southwark and Lambeth combined, divided by the population for combined
+x2 <- (tableVI_1856$mortality_projected_calc[1:31] / tableVI_1856$pop_combined_calc[1:31]) / 10000
+xstderr_poiss <- 10000 * sqrt(x1 + x2)     # Std Err of difference in mortality rates (assuming Poisson)
+
+
+#pdf(paste("../paper/figures/errbar_diff1856_t","a.pdf",sep=""))
+	title <- "Actual minus Snow Predicted, as if paired t-test"
+  spread <- c(-1.96*xstderr_poiss,1.96*xstderr_poiss)
+	plotdiff_stderr(yseq,xdiff,xstderr_ttest,title,spread)   # Plot for all sub-districts
+#dev.off()
+
+
+
+```
+
+Sub-districts are displayed in the order from Snow's 1855 publication - shown in the variable "seq_1855" in the Table VI .csv. 
+Error bars are drawn at $\pm$ 1.96 \* Standard Deviation of differences; this is  = $\pm$ 
+`r round(1.96*sd(tableVI_1856$mortality_1854_calc[1:31] - tableVI_1856$mortality_projected_calc[1:31]),2)`. These give the intution for the *t*-test, showing that most of the observed differences are within the 95% error bars and thus relatively small relative to the observed variability across sub-districts. 
+
+But the assumption for this graph, that all sub-district pairs have the same variance, is not correct. These are mortality *rates*, derived from *counts* based on finite populations. There will be variability simply because of the finite sub-district populations. Some are small - as mentioned above Putney has only 74 people supplied by the two water companies. Putney should have a much larger standard error than, say, Kennington 1st with a combined population of 18,483. 
+
+We can calculate approximate standard errors for each sub-district pair. Let us make the very reasonable assumption that the counts for each sub-district are Bernoulli random variables, the sum of which is Binomial and will go towards normal for large populations. The rates (average of the counts) will go to normal (by the Central Limit Theorem) with standard error $\sqrt{\frac{r*(1-r)}{n}}$ which for Poisson (which approximates the Bernoulli / Binomial) is $\sqrt{\frac{\lambda}{n}}$. The difference between two rates with different populations (actual and predicted here) will have approximate standard error $\sqrt{\frac{\lambda1}{n1} - \frac{\lambda2}{n2}}$.
+
+
+```{r}
+# Calculate difference in death counts - but don't graph this
+xdiffc <- tableVI_1856$deaths_1854[1:31]-tableVI_1856$deaths_projected_combined_calc[1:31]
+# 1854 deaths 
+x1 <- tableVI_1856$deaths_1854[1:31] 
+# deaths for Southwark and Lambeth combined
+x2 <- tableVI_1856$deaths_projected_combined_calc[1:31] 
+xstderrc <-  sqrt(x1 + x2)     # Std Err of difference in deaths (assuming Poisson)
+title <- "Actual minus Snow Predicted, Poisson Error Bars"
+#plotdiff_stderr(yseq,xdiffc,xstderrc,title)   # Plot for all sub-districts
+
+#pdf(paste("/Users/tcoleman/tom/Economics/Harris/research/snow_cholera/paper/figures/errbar_diff1856_pois","a.pdf",sep=""))
+	title <- "Actual minus Snow Predicted, Poisson Error Bars"
+	plotdiff_stderr(yseq,xdiff,xstderr_poiss,title)   # Plot for all sub-districts
+
+
+```
+
+This graph shows the approximate Poisson error bars. Because some of the sub-districts (Putney, sequence number 10, for example) have very low water company population the standard error can be large. The difference for Putney is large but it is well within the standard error when we account for the small population of water company customers. 
+
+This graph shows why the paired *t*-test is not appropriate: it does not incorporate the variation due to finite sub-district populations. In the end we need to combine both the cross-sub-district variation shown in the first graph with the finite-population variation shown here. 
+
+One possible statistical assumption is that the counts are Negative Binomial, meaning that the sub-districts are Poisson but the Poisson rates are random and drawn from a Gamma distribution. This is not the only possible assumption but it is convenient. 
+
+```{r}
+# Calculate difference in mortality rates, but assuming Negative Binomial rather than simple Poisson
+#   Poisson, Variance = rate * N => Var / N^2 = rate / N
+#   NB, Variance = rate*N + (rate*N)^2 / theta => Var / N^2 = rate/N + rate^2/theta
+theta <- 12.8
+# Variance for actual mortality rates - variance for NB is as above 
+x1 <- ((tableVI_1856$mortality_1854_calc[1:31]/10000) / tableVI_1856$pop1851[1:31] 
+	+ (tableVI_1856$mortality_1854_calc[1:31]/10000)^2 / theta) 
+# Variance for predicted mortality rates - variance for NB is as above
+	x2 <- ((tableVI_1856$mortality_projected_calc[1:31]/10000) / tableVI_1856$pop_combined_calc[1:31] 
+		+ (tableVI_1856$mortality_projected_calc[1:31]/10000)^2 / theta) 
+#x2 <- (tableVI_1856$mortality_projected_calc[1:31] / tableVI_1856$pop_combined_calc[1:31]) / 10000
+xstderr_nb <- 10000 * sqrt(x1 + x2)     # Std Err of difference in mortality rates (assuming Poisson)
+
+#pdf(paste("../paper/figures/errbar_diff1856_nb","a.pdf",sep=""))
+	title <- "Actual minus Snow Predicted, Neg Bin Error Bars"
+	plotdiff_stderr(yseq,xdiff,xstderr_nb,title)   # Plot for all sub-districts
+#dev.off()
+
+```
+
+This graph shows approximate error bars for the Negative Binomail standard error of $\sqrt{\left(\frac{\lambda1}{n1} + \frac{\lambda1^2}{\theta}\right) - \left(\frac{\lambda2}{n2} + \frac{\lambda2^2}{\theta}\right)}$ (and using a reasonable value of the Negative Binomial parameter - $\theta$=`r theta`).
+
+This is not a formal estimation or testing framework (we turn to that in the next section) but it shows how and why we need to incorporate both cross-sub-district and within-sub-district variation. Even though the above graph is only heuristic and approximate, we can see that all the differences fit within these "error bars". We will now turn to a more appropriate structure where we will see that yes, Snow was right, and differences in mortality across different water sources was a major source of the variation both across sub-districts and across time within sub-districts. 
+
+###Difference-in-Differences Regression with Population Weights
+
+####Setting the Scene
+
+In Snow 1856 we have estimated houses and estimated population assigned to the two water supply companies. But there are actually *three* sources of water: Southwark & Vauxhall Co, Lambeth Co, and "Other" (pump-wells, Thames, ditches). There is considerable variation across sub-districts not only in the proportion supplied by Southwark versus Lambeth, but also in the total proportion supplied by water companies versus "other". 
+
+
+```{r}
+tablei_1856$combined_pop <- tablei_1856$southwark_pop + tablei_1856$lambeth_pop
+tablei_1856[c("subDistrict","pop1851","southwark_pop","lambeth_pop","combined_pop")]
+```
+
+The estimates published in Snow 1856 Tables I and II (displayed above) show that for St. Saviour, Southwark `r round(100 * tablei_1856$southwark_pop[1] / tablei_1856$pop1851[1],1)`% was supplied by the Southwark water company, `r round(100 * tablei_1856$lambeth_pop[1] / tablei_1856$pop1851[1],1)`% by Lambeth, and `r round(100 * tablei_1856$combined_pop[1] / tablei_1856$pop1851[1],1)`% by the two combined. For St. Mary, Newington `r round(100 * tablei_1856$southwark_pop[19] / tablei_1856$pop1851[19],1)`% was supplied by the Southwark Company, `r round(100 * tablei_1856$lambeth_pop[19] / tablei_1856$pop1851[19],1)`% by Lambeth, and only `r round(100 * tablei_1856$combined_pop[19] / tablei_1856$pop1851[19],1)`% by the two combined. 
+
+Note in passing that there are problems with the population estimates (which Snow highlighted). Some sub-districts that were in fact not supplied by the Lambeth Company (such as St. Saviour, Southwark) have incorectly-reported Lambeth population. Some sub-districts (such as St. Mary Magdalen) have a larger combine Southwark + Lambeth population than the 1851 census population.
+
+To account for the variation in observed sub-district mortality we need to measure the population differences for all three sources; Snow in Table VI only accounted for the first two. To do this we can model the mortality rate for a sub-district as the population-weighted average:
+
+$R_{subdis,yr} = R_S * P_S + R_L^{54} * P_L * I_{yr=1854} + R_L * P_L + R_O * P_O + \delta_{54} * I_{yr=1854} + \epsilon$
+
++ $R_S ...$ = (estimated) mortality rate for Southwark, Lambeth, Other
++ $P_S ...$ = (observed) population proportion for Southwark, Lambeth, Other
++ $R_L^{54}$ = (estimated) Lambeth 1854 effect (clean water treatment effect)
+
+To highlight and more easily test the difference between Southwark and Lambeth we can note that $P_S = 1 - P_L - P_O$, use $R_S$ as the overall constant, and write
+
+$R_{subdis,yr} = R_S + (R_L^{54}-R_S) * P_L * I_{yr=1854} + (R_L-R_S) * P_L + (R_O-R_S) * P_O + \delta_{54} * I_{yr=1854} + \epsilon$
+
+so that the estimated coefficients ($(R_L-R_S)$) are the difference from the excluded (Southwark) category. 
+
+####Creating the Data
+
+Just as for the notebook "Snow1855_DiDRegression1" we must stack the data from Snow 1855 Tables VIII and XII and create appropriate indicator variables. Here we also need to merge in the population estimates from Snow 1856 Tables I & II.
+
+```{r}
+x1 <- subset(tableviii,supplier == "SouthwarkVauxhall" | supplier == "SouthwarkVauxhall_Lambeth")
+x1849 <- x1[c("subDistrict","pop1851","supplier","lambethdegree")]
+x1 <- subset(tablexii,supplier == "SouthwarkVauxhall" | supplier == "SouthwarkVauxhall_Lambeth")
+x1849$deaths <- x1$deaths1849
+x1849$rate <- 10000 * x1$deaths1849 / x1849$pop1851
+x1849$seq <- c(seq(1,length(x1849$deaths)))
+#x1849$dum1854 <- 0
+xyear <- factor(c(rep(1849,28),rep(1854,28)))
+x1849$year <- xyear[1:28]
+x1854 <- x1849
+#x1849$lambethdegree <- "dirty"
+x1854$deaths <- x1$deaths1854
+x1854$rate <- 10000 * x1$deaths1854 / x1849$pop1851
+x1854$seq <- c(seq(1,length(x1849$deaths)))
+#x1854$dum1854 <- 1
+x1854$year <- xyear[29:56]
+
+
+# First, re-generate "redgata" after pasting on population fractions. 
+# For 1849 and for Southwark-only sub-districts 
+
+# Lambeth population as percent of total (1851) popoulation. Zero out the non-Lambeth sub-districts ("first 12")
+# I want three variables:
+#  1) Lambeth for both 1849 & 1854 
+#  2) Other for both 1849 & 1854
+# these two will measure against Southwark for dirty water
+#  3) Lambeth for 1854   -  this should measure Lambeth for clean water
+x1849$otherperc <- 0
+x1854$otherperc <- 0
+x1849$lambethperc <- 0
+x1854$lambethperc <- 0
+x1849$lambethperc54 <- 0
+x1854$lambethperc54 <- 0
+# This calculates lambeth as percent of TOTAL population. I think this is right for
+# measuring the "Lambeth effect" because it gives the proportion of the population treated (with clean Lambeth water)
+# which is the variation from 1849 to 1854
+x1849$otherperc <- 1 - (tablei_1856[1:28,]$southwark_pop + tablei_1856[1:28,]$lambeth_pop ) /
+	tablei_1856[1:28,]$pop1851
+x1854$otherperc <- x1849$otherperc
+# Variable for only 1954 Lambeth
+x1854[13:28,]$lambethperc54 <- tablei_1856[13:28,]$lambeth_pop / tablei_1856[13:28,]$pop1851
+x1849$lambethperc <- x1854$lambethperc54
+x1854$lambethperc <- x1849$lambethperc
+
+# popultion per house seems to come in as factor - convert to numeric
+x1849$pop_per_house <- as.numeric(as.character(tablei_1856$pop_per_house[1:28]))
+x1854$pop_per_house <- as.numeric(as.character(tablei_1856$pop_per_house[1:28]))
+
+regdata <- rbind(x1849,x1854)
+
+regdata
+```
+
+####OLS Linear Regressions
+
+With the dataframe "regdata" we can now run various regressions. To start just the simple OLS linear regression.
+
+```{r}
+# Linear with no population density
+linpopn <- lm(regdata$rate ~ regdata$lambethperc54 + regdata$lambethperc + regdata$otherperc + regdata$year )
+linpopnrobustse <- coeftest(linpopn, vcov = vcovHC(linpopn))
+summary(linpopn)
+
+```
+
+The "Lambeth" or clean water effect is the coefficient "`r labels(linpopn$coefficients[2])`" = `r round(summary(linpopn)$coefficients[2,1],1)` - the mortality per 10,000 for Lambeth company customers, as a difference from Southwark & Vauxhall company customers. The z value of `r round(summary(linpopn)$coefficients[2,3],1)` indicates that this is statistically significant. The value itself is very large, telling us that in 1854 the mortality rate of Lambeth customers was `r round(summary(linpopn)$coefficients[2,1],0)` per 10,000 lower than for Southwark & Vauxhall customers - a *very* large difference given that the base Southwark & Vauxhall mortality was `r round(summary(linpopn)$coefficients[1,1],0)`.
+
+The adjusted R-squared tests whether variations in the population proportions and differences in water supply account for much of the observed variation in mortality, exactly what Snow was trying to test. The high R-squared shows that indeed differences in mortality between water suppliers accounts for much of the observed variaton. 
+
+The population estimates published in 1856 also included housing density estimates. One popular and very reasonable hypothesis was that crowding led to higher cholera mortality. We can test the effect of differences in crowding, within this region of south London, by including housing density as a regressor. 
+
+```{r}
+# Linear with population density
+linpopn_den <- lm(regdata$rate ~ regdata$lambethperc54 + regdata$lambethperc + regdata$otherperc + regdata$year
+	+ regdata$pop_per_house )
+linpopn_denrobustse <- coeftest(linpopn_den, vcov = vcovHC(linpopn_den))
+summary(linpopn_den)
+
+```
+
+
+Doing so has virtually effect on the Lambeth coefficient - it is still `r round(summary(linpopn_den)$coefficients[2,1],1)`. Housing density is marginally significant but adds little to the overall explanatory power of the regression - the Adjusted R-Squared increases from `r round(summary(linpopn)$adj.r.squared,3)` to `r round(summary(linpopn_den)$adj.r.squared,3)`.
+
+We can also include fixed effects for each sub-district. Including housing density asks "does the difference in density across sub-districts help explain mortality, or reduce the importance of clean water for Lambeth customers?" Including fixed effects asks a dramatically more general question: "are there any differences across sub-districts that help explain mortality or reduce the importance of clean water?" The answer is basically "No". 
+
+```{r}
+# Linear with fixed effects
+linpopn_FE <- lm(regdata$rate ~ regdata$lambethperc54 + regdata$lambethperc + regdata$otherperc + regdata$year
+	+ regdata$subDistrict )
+linpopn_FErobustse <- coeftest(linpopn_FE, vcov = vcovHC(linpopn_FE))
+summary(linpopn_FE)
+
+```
+
+The Adjusted R-Squared increases from `r round(summary(linpopn)$adj.r.squared,3)` to `r round(summary(linpopn_FE)$adj.r.squared,3)`, but the value of the Lambeth effect is unchanged and in fact is now estimated even more precisely: t value `r round(summary(linpopn_FE)$coefficients[2,3],1)`. Yes there are differences in mortality across sub-districts that are not explained only by differences in water supplier, but water supply still has a dramaticly large and precisely-estimated effect. 
+
+####Count (Poisson & Negative Binomial Regressions)
+
+The OLS regression above is not really appropriate because observed variables are counts - positive and integer-valued rather than continuous. The residuals for the regression cannot be continuous normal variables. We need to turn to Poisson or Negative Binomial regression. Unfortunately the standard estimation routines are based on a lograithmic relation:
+
+$ln(R_{subdis,yr}) = R_S + (R_L^{54}-R_S) * P_L * I_{yr=1854} + (R_L-R_S) * P_L + (R_O-R_S) * P_O + \delta_{54} * I_{yr=1854} + \epsilon$
+
+It is thus difficult to impose exactly the linear relation between the rate and the population fractions. (We would need a non-linear Poisson and Negative Binomial fitting routine.) In spite of this we can run the count regressions and we find essentially the same as the linear regressions: water supply is dramatically important and the effect on mortality dramatically large. 
+
+The following code chunk runs a variety of Poisson and Negative Binomial regressions but displays only the Negative Binomial with housing density. 
+
+```{r}
+# Poisson with no FE and no housing density
+pois1popn <- glm(regdata$deaths ~ regdata$lambethperc54 + regdata$lambethperc + regdata$otherperc + regdata$year
+	+ offset(log(regdata$pop1851)), family=poisson)
+pois1popnrobustse <- coeftest(pois1popn, vcov = vcovHC(pois1popn))
+#summary(pois1popn)
+#logLik(pois1popn)
+#coeftest(pois1popn, vcov = vcovHC(pois1popn))
+
+# Poisson with housing density
+pois1popn_den <- glm(regdata$deaths ~ regdata$lambethperc54 + regdata$lambethperc + regdata$otherperc + regdata$year
+	+ regdata$pop_per_house	+ offset(log(regdata$pop1851)), family=poisson)
+pois1popn_denrobustse <- coeftest(pois1popn_den, vcov = vcovHC(pois1popn_den))
+#summary(pois1popn_den)
+#logLik(pois1popn_den)
+#coeftest(pois1popn_den, vcov = vcovHC(pois1popn_den))
+
+# Poisson with different rates by sub-district (fixed effects)
+pois2popn <- glm(regdata$deaths ~ regdata$lambethperc54 + regdata$lambethperc + regdata$otherperc + regdata$year
+	+ regdata$subDistrict + offset(log(regdata$pop1851)), family=poisson)
+pois2popnrobustse <- coeftest(pois2popn, vcov = vcovHC(pois2popn))
+#summary(pois2popn)
+#logLik(pois2popn)
+#coeftest(pois2popn, vcov = vcovHC(pois2popn))
+
+
+
+# Negative Binomial with no FE and no housing density
+nb1popn <- glm.nb(regdata$deaths ~ regdata$lambethperc54 + regdata$lambethperc + regdata$otherperc + regdata$year
+	 + offset(log(regdata$pop1851)))
+nb1popnrobustse <- coeftest(nb1popn, vcov = vcovHC(nb1popn))
+#summary(nb1popn)
+#logLik(nb1popn)
+#coeftest(nb1popn, vcov = vcovHC(nb1popn))
+
+
+# Also run with housing density
+nb1popn_den <- glm.nb(regdata$deaths ~ regdata$lambethperc54 + regdata$lambethperc + regdata$otherperc + regdata$year
+	+ regdata$pop_per_house + offset(log(regdata$pop1851)))
+nb1popn_denrobustse <- coeftest(nb1popn_den, vcov = vcovHC(nb1popn_den))
+#summary(nb1popn_den)
+#logLik(nb1popn_den)
+#coeftest(nb1popn_den, vcov = vcovHC(nb1popn_den))
+
+# Finally, FEs
+nb2popn <- glm.nb(regdata$deaths ~ regdata$lambethperc54 + regdata$lambethperc + regdata$otherperc + regdata$year
+	+ regdata$subDistrict + offset(log(regdata$pop1851)))
+nb2popnrobustse <- coeftest(nb2popn, vcov = vcovHC(nb2popn))
+#summary(nb2popn)
+#logLik(nb2popn)
+#coeftest(nb2popn, vcov = vcovHC(nb2popn))
+
+summary(nb1popn_den)
+
+```
+
+The result for the Negative Binomial with housing density is, again, that the effect of clean water (the Lambeth effect) is large and statistically significant (coefficient `r round(summary(nb1popn_den)$coefficients[2,1],3)`, ratio effect `r round(exp(-summary(nb1popn_den)$coefficients[2,1]),2)`, z ratio `r round(summary(nb1popn_den)$coefficients[2,3],2)`). The regression fits the data reasonably well when measured by the Residual Deviance. 
+
+###Conclusion - Snow was Right - Clean Water Matters
+
+Using the population by sub-district to measure the fraction of customers supplied by the Southwark & Vauxall Company, the Lambeth Company, and Other (wells etc.) strongly supports Snow's contention both that the actual and predicted moralit "bear a close relation" and that nature of the water supply exerts an "overwhelming influence". 
+
