@@ -7,9 +7,9 @@ Working paper with discussion of Snow, the data, and the statistics, on SSRN (lo
 
 The order for looking at and running these notebooks is:
 
-1 Snow1855_read1
-2 Snow1855_SimpleDiD_QRCT
-3 Snow1855_DiDRegression1
-4 Snow1855_DidREgression2_ErrorAnalysis
-5 Snow1856_TableVI_DiD
+1. Snow1855_read1
+2. Snow1855_SimpleDiD_QRCT
+3. Snow1855_DiDRegression1
+4. Snow1855_DidREgression2_ErrorAnalysis
+5. Snow1856_TableVI_DiD
 
