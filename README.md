@@ -11,5 +11,6 @@ The order for looking at and running these notebooks is:
 2. Snow1855_SimpleDiD_QRCT
 3. Snow1855_DiDRegression1
 4. Snow1855_DidREgression2_ErrorAnalysis
-5. Snow1856_TableVI_DiD
+5. Snow1856_TableVI_Intro
+6. Snow1856_TableVI_DiD
 
