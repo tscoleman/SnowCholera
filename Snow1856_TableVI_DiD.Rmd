@@ -269,6 +269,119 @@ summary(nb1popn_den)
 
 The result for the Negative Binomial with housing density is, again, that the effect of clean water (the Lambeth effect) is large and statistically significant (coefficient `r round(summary(nb1popn_den)$coefficients[2,1],3)`, ratio effect `r round(exp(-summary(nb1popn_den)$coefficients[2,1]),2)`, z ratio `r round(summary(nb1popn_den)$coefficients[2,3],2)`). The regression fits the data reasonably well when measured by the Residual Deviance. 
 
+####Populating Table with Summary Statistics
+
+I use these tables to summarize the diff-in-diff regressions, but do not display them here. You can if you wish. 
+
+First, a code chunk for the linear regressions (but also including the Negative Binomial with population density)
+
+
+```{r}
+# Create table with regression results (diff-in-diffs estimate) using robust SEs
+# for all except the NB1 (Negative Binomial without sub-district fixed effects)
+regtabledid1856lin <- matrix(0,nrow=13,ncol=4)
+colnames(regtabledid1856lin) <- c("Lin","Lin popden","Lin FE","NB popden")
+rownames(regtabledid1856lin) <- c("Lambeth 1854 effect","SE","z value","p-value",
+	"lambeth perc","z value","other perc","z value",
+	"pop density","z value","Rsq / resid dev",	"Southwark 1854 rate","Lambeth 1854 rate")
+# Populate the table from the regressions
+# Linear no population density
+regtabledid1856lin[c(1,2,3,4),1] <- summary(linpopn)$coefficients[2,c(1,2,3,4)]
+regtabledid1856lin[11,1] <- summary(linpopn)$adj.r.squared
+regtabledid1856lin[c(5,6),1] <- summary(linpopn)$coefficients[3,c(1,3)]
+regtabledid1856lin[c(7,8),1] <- summary(linpopn)$coefficients[4,c(1,3)]
+regtabledid1856lin[c(12,13),1] <- c(sum(summary(linpopn)$coefficients[c(1,5)]),sum(summary(linpopn)$coefficients[c(1,2,3,5)]))
+# Linear Population density
+regtabledid1856lin[c(1,2,3,4),2] <- summary(linpopn_den)$coefficients[2,c(1,2,3,4)]
+regtabledid1856lin[11,2] <- summary(linpopn_den)$adj.r.squared
+regtabledid1856lin[c(5,6),2] <- summary(linpopn_den)$coefficients[3,c(1,3)]
+regtabledid1856lin[c(7,8),2] <- summary(linpopn_den)$coefficients[4,c(1,3)]
+regtabledid1856lin[c(9,10),2] <- summary(linpopn_den)$coefficients[6,c(1,3)]
+regtabledid1856lin[c(12,13),2] <- c(sum(summary(linpopn_den)$coefficients[c(1,5)]),sum(summary(linpopn_den)$coefficients[c(1,2,3,5)]))
+# Linear Fixed Effects
+regtabledid1856lin[c(1,2,3,4),3] <- summary(linpopn_FE)$coefficients[2,c(1,2,3,4)]
+regtabledid1856lin[11,3] <- summary(linpopn_FE)$adj.r.squared
+regtabledid1856lin[c(5,6),3] <- summary(linpopn_FE)$coefficients[3,c(1,3)]
+regtabledid1856lin[c(7,8),3] <- summary(linpopn_FE)$coefficients[4,c(1,3)]
+regtabledid1856lin[c(12,13),3] <- c(sum(summary(linpopn_FE)$coefficients[c(1,5)]),sum(summary(linpopn_FE)$coefficients[c(1,2,3,5)]))
+# Negative Binomial population density
+regtabledid1856lin[c(1,2,3,4),4] <- summary(nb1popn_den)$coefficients[2,c(1,2,3,4)]
+regtabledid1856lin[c(9,10),4] <- summary(nb1popn_den)$coefficients[6,c(1,3)]
+regtabledid1856lin[11,4] <- summary(nb1popn_den)$deviance
+regtabledid1856lin[c(5,6),4] <- summary(nb1popn_den)$coefficients[3,c(1,3)]
+regtabledid1856lin[c(7,8),4] <- summary(nb1popn_den)$coefficients[4,c(1,3)]
+regtabledid1856lin[c(12,13),4] <- 10000 * c(exp(sum(summary(nb1popn_den)$coefficients[c(1,5)])),
+	exp(sum(summary(nb1popn_den)$coefficients[c(1,2,3,5)])))
+
+```
+
+Then a code chunk for the various permuations of count regressions with population proportions, six regressions in total:
+
++ Poisson and Negative Binomial
++ For each, no population density, yes population density, sub-district fixed effects.
+
+```{r}
+# Create table with regression results (diff-in-diffs estimate) using robust SEs
+# for all except the NB1 (Negative Binomial without sub-district fixed effects)
+regtabledid1856 <- matrix(0,nrow=21,ncol=6)
+colnames(regtabledid1856) <- c("Poiss","Poiss pop","PoissFE","NB","NB pop","NB FE")
+rownames(regtabledid1856) <- c("Lambeth 1854 effect","SE","z value","p-value",
+	"robust SE","z value","ratio effect",
+	"lambeth perc","SE","z value","p-value","other perc","SE","z value","p-value",
+	"theta","resid dev","pop den","SE","z value","p-value")
+# Populate the table from the regressions
+# Poiss no population density
+regtabledid1856[c(1,2,3,4),1] <- summary(pois1popn)$coefficients[2,c(1,2,3,4)]
+regtabledid1856[c(5,6),1] <- pois1popnrobustse[2,c(2,3)]
+regtabledid1856[7,1] <- exp(regtabledid1856[1,1])
+regtabledid1856[c(8,9,10,11),1] <- summary(pois1popn)$coefficients[3,c(1,2,3,4)]
+regtabledid1856[c(12,13,14,15),1] <- summary(pois1popn)$coefficients[4,c(1,2,3,4)]
+regtabledid1856[17,1] <- summary(pois1popn)$deviance
+# Poiss Population density
+regtabledid1856[c(1,2,3,4),2] <- summary(pois1popn_den)$coefficients[2,c(1,2,3,4)]
+regtabledid1856[c(5,6),2] <- pois1popn_denrobustse[2,c(2,3)]
+regtabledid1856[7,2] <- exp(regtabledid1856[1,2])
+regtabledid1856[c(8,9,10,11),2] <- summary(pois1popn_den)$coefficients[3,c(1,2,3,4)]
+regtabledid1856[c(12,13,14,15),2] <- summary(pois1popn_den)$coefficients[4,c(1,2,3,4)]
+regtabledid1856[17,2] <- summary(pois1popn_den)$deviance
+regtabledid1856[c(18,19,20,21),2] <- summary(pois1popn_den)$coefficients[5,c(1,2,3,4)]
+# Poiss Fixed Effects
+regtabledid1856[c(1,2,3,4),3] <- summary(pois2popn)$coefficients[2,c(1,2,3,4)]
+regtabledid1856[c(5,6),3] <- pois2popnrobustse[2,c(2,3)]
+regtabledid1856[7,3] <- exp(regtabledid1856[1,3])
+regtabledid1856[c(8,9,10,11),3] <- summary(pois2popn)$coefficients[3,c(1,2,3,4)]
+regtabledid1856[c(12,13,14,15),3] <- summary(pois2popn)$coefficients[4,c(1,2,3,4)]
+regtabledid1856[17,3] <- summary(pois2popn)$deviance
+# NB no population density
+regtabledid1856[c(1,2,3,4),4] <- summary(nb1popn)$coefficients[2,c(1,2,3,4)]
+regtabledid1856[c(5,6),4] <- nb1popnrobustse[2,c(2,3)]
+regtabledid1856[7,4] <- exp(regtabledid1856[1,3])
+regtabledid1856[c(8,9,10,11),4] <- summary(nb1popn)$coefficients[3,c(1,2,3,4)]
+regtabledid1856[c(12,13,14,15),4] <- summary(nb1popn)$coefficients[4,c(1,2,3,4)]
+regtabledid1856[16,4] <- summary(nb1popn)$theta
+regtabledid1856[17,4] <- summary(nb1popn)$deviance
+# NB population density & water company percent
+regtabledid1856[c(1,2,3,4),5] <- summary(nb1popn_den)$coefficients[2,c(1,2,3,4)]
+regtabledid1856[c(5,6),5] <- nb1popn_denrobustse[2,c(2,3)]
+regtabledid1856[7,5] <- exp(regtabledid1856[1,5])
+regtabledid1856[c(8,9,10,11),5] <- summary(nb1popn_den)$coefficients[3,c(1,2,3,4)]
+regtabledid1856[c(12,13,14,15),5] <- summary(nb1popn_den)$coefficients[4,c(1,2,3,4)]
+regtabledid1856[16,5] <- summary(nb1popn_den)$theta
+regtabledid1856[17,5] <- summary(nb1popn_den)$deviance
+regtabledid1856[c(18,19,20,21),5] <- summary(nb1popn_den)$coefficients[5,c(1,2,3,4)]
+# NB FEs
+regtabledid1856[c(1,2,3,4),6] <- summary(nb2popn)$coefficients[2,c(1,2,3,4)]
+regtabledid1856[c(5,6),6] <- nb2popnrobustse[2,c(2,3)]
+regtabledid1856[7,6] <- exp(regtabledid1856[1,6])
+regtabledid1856[c(8,9,10,11),6] <- summary(nb2popn)$coefficients[3,c(1,2,3,4)]
+regtabledid1856[c(12,13,14,15),6] <- summary(nb2popn)$coefficients[4,c(1,2,3,4)]
+regtabledid1856[16,6] <- summary(nb2popn)$theta
+regtabledid1856[17,6] <- summary(nb2popn)$deviance
+
+
+```
+
+
 ###Conclusion - Snow was Right - Clean Water Matters
 
 Using the population by sub-district to measure the fraction of customers supplied by the Southwark & Vauxhall Company, the Lambeth Company, and Other (wells etc.) strongly supports Snow's contention both that the actual and predicted mortality "bear a close relation" and that nature of the water supply exerts an "overwhelming influence". 
