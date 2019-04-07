@@ -9,7 +9,8 @@ These are RStudio notebooks, each with explanation and code. The notebook (.Rmd)
 
 btw, if you want to extract just the R code, run
 - library (knitr)
-- knit('Snow1855_SimpleDiD_QRCT.Rmd', tangle=TRUE) 
+- knit('notebook.Rmd', tangle=TRUE)
+and this will save *notebook.R* under your working directory
 
 Each notebook is designed to be self-contained and independent (in terms of code) from the others. The order for looking at and running these notebooks is:
 
