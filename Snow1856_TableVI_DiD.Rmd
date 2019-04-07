@@ -1,6 +1,6 @@
 ---
 title: "John Snow Project - 1856 Table VI and DiD Extension"
-author: "[Thomas S. Coleman](http://www.hilerun.org/econ)"
+author: "[Thomas Coleman](http://www.hilerun.org/econ)"
 output: html_notebook
 ---
 # Examining Snow's 1856 Table VI - Predicted Mortality and Diff-in-Diffs with Population Data
@@ -326,6 +326,13 @@ Then a code chunk for the various permutations of count regressions with populat
 + For each, no population density, yes population density, sub-district fixed effects.
 
 ```{r}
+# Copyright (c) 2019, Thomas Coleman
+#
+#  -------  Licensed under BSD 2-Clause "Simplified" License  -------
+#
+# Results and discussion in "Causality in the Time of Cholera: John Snow as a Prototype 
+# for Causal Inference (Working Paper)" available at SSRN: https://papers.ssrn.com/abstract=3262234
+
 # Create table with regression results (diff-in-diffs estimate) using robust SEs
 # for all except the NB1 (Negative Binomial without sub-district fixed effects)
 regtabledid1856 <- matrix(0,nrow=21,ncol=6)
