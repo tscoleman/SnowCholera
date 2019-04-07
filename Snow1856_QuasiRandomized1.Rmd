@@ -348,7 +348,7 @@ I am not printing out all the regressions (you can check the summary statistics 
 + Including sub-district fixed effects gives a Residual Deviance that is marginally significant (Residual Deviance = `r round(pois2_TableVIII$deviance,2)`, p-value = `r round(1-pchisq(pois2_TableVIII$deviance,pois2_TableVIII$df.residual),3)`). In other words Poisson with each sub-district having a different rate fits marginally. 
 + Negative Binomial fits the data slightly better (in terms of Residual Deviance - it is higher than Poisson with Fixed Effects, but requires fewer explanatory variables to reduce the Deviance). 
 + In all cases the "Lambeth Effect" is large (roughly `r round(pois2_TableVIII$coefficients[2],1)` for a ratio effect of `r round(exp(-pois2_TableVIII$coefficients[2]),1)`). 
-+ The "Lambeth Effect" is statistically significant (has a very large z-value). We cannot rely on the z-value for the basic Poisson regression (becuase the model does not fit well - the Residual Deviance is large), and we want to be cautious even with the Poisson FE model. But the Negative Binomial still has a very large z-value. Further, we can calculate robust standard errors for all the regressions, and these all have large z-values (8 or larger)
++ The "Lambeth Effect" is statistically significant (has a very large z-value). We cannot rely on the z-value for the basic Poisson regression (because the model does not fit well - the Residual Deviance is large), and we want to be cautious even with the Poisson FE model. But the Negative Binomial still has a very large z-value. Further, we can calculate robust standard errors for all the regressions, and these all have large z-values (8 or larger)
 
 
 ####Graphs Showing Sub-District Variation
@@ -394,11 +394,11 @@ x975 <- pmin(x975,20)
 #dev.off()
 ```
 
-The observed mortality rates (red circles) are quite variable compared with the fitted values, often falling outside the approximate error bars. The difference between Soutwhark & Vauxhall Co. customers (the first graph) versus Lambeth Co. customers is nonethless very large. 
+The observed mortality rates (red circles) are quite variable compared with the fitted values, often falling outside the approximate error bars. The difference between Southwark & Vauxhall Co. customers (the first graph) versus Lambeth Co. customers is nonetheless very large. 
 
-We can accomodate the outliers within the error bars better either by allowing each sub-district to be different (including sub-district fixed effects), or by widening the error bars themselves (assuming the errors are Negative Binomial, essentially that the sub-districts have random mortality rates). For this set of data either approach works somewhat well, as shown by the Residual Deviance calculations in the table above. 
+We can accommodate the outliers within the error bars better either by allowing each sub-district to be different (including sub-district fixed effects), or by widening the error bars themselves (assuming the errors are Negative Binomial, essentially that the sub-districts have random mortality rates). For this set of data either approach works somewhat well, as shown by the Residual Deviance calculations in the table above. 
 
-The following two code chunks will produce graphs for Poisson FEs and Negative Binomial. I have commented out the actual plot command (the call to "plot2_worker") but you can easily run these chunks youself to see the graphs. 
+The following two code chunks will produce graphs for Poisson FEs and Negative Binomial. I have commented out the actual plot command (the call to "plot2_worker") but you can easily run these chunks yourself to see the graphs. 
 
 ```{r}
 
@@ -569,7 +569,7 @@ nb1pop_TableVrobustse <- coeftest(nb1pop_TableV, vcov = vcovHC(nb1pop_TableV))
 
 ####Table with Summary
 
-The folowing code chunk populates a table with summary statistics for various regressions:
+The following code chunk populates a table with summary statistics for various regressions:
 
 + Poisson: basic, with population (housing) density, District Fixed Effects
 + Negative Binomial: basic, with population (housing) density
@@ -648,12 +648,12 @@ I am not printing out all the regressions (you can check the summary statistics 
 + Including sub-district fixed effects does not reduce the Residual Deviance enough to fit the data. 
 + Negative Binomial fits the data slightly better (in terms of Residual Deviance - it is marginally small enough). 
 + In all cases the "Lambeth Effect" is large - (roughly `r round(nb1pop_TableV$coefficients[2],1)` for a ratio effect of `r round(exp(-nb1pop_TableV$coefficients[2]),1)`) 
-+ The "Lambeth Effect" is statistically significant (has a very large z-value). We cannot rely on the z-value for the basic Poisson regression (becuase the model does not fit well - the Residual Deviance is large), and we want to be cautious with all these models. Even using robust standard errors, however, we find z-values of 5 or larger. 
++ The "Lambeth Effect" is statistically significant (has a very large z-value). We cannot rely on the z-value for the basic Poisson regression (because the model does not fit well - the Residual Deviance is large), and we want to be cautious with all these models. Even using robust standard errors, however, we find z-values of 5 or larger. 
 
 
 ###Overall Conclusion
 
-Snow recognized the value of his "Grand Experiment" - the near-randomization of customers in South London. In his 1855 "On the mode ..." he did not have the population data to test carefully, and with the population data in his 1856 "Cholera and the water supplly ..." he did not have the statistical framework or the tools for formal hypothesis testing. 
+Snow recognized the value of his "Grand Experiment" - the near-randomization of customers in South London. In his 1855 "On the mode ..." he did not have the population data to test carefully, and with the population data in his 1856 "Cholera and the water supply ..." he did not have the statistical framework or the tools for formal hypothesis testing. 
 
-We, however, do have the necessary framework and tools. Whether using the first seven weeks by sub-district from 1855 Table VIII or the full 1854 outbreak by District from 1856 Table V, the results are unambiguous: customers supplied with clean water by the Lambeth Co. had dramatically lower mortality than customers supplied by the Southwark & Vauxhall Co. (or supplied by "Other"). Snow recognized that the mixing of customers was a strong argument that ruled out virtually all other confounding factors - income, sex, age, social status, weather - since customers that were randomly mixed and in close proximity would either be mixed across these variables or would share the same influence (weather, for example). With our statitical tools we can more formally confirm what Snow saw in the data - clean water was more important than any of the other factors he (or we) could think of. 
+We, however, do have the necessary framework and tools. Whether using the first seven weeks by sub-district from 1855 Table VIII or the full 1854 outbreak by District from 1856 Table V, the results are unambiguous: customers supplied with clean water by the Lambeth Co. had dramatically lower mortality than customers supplied by the Southwark & Vauxhall Co. (or supplied by "Other"). Snow recognized that the mixing of customers was a strong argument that ruled out virtually all other confounding factors - income, sex, age, social status, weather - since customers that were randomly mixed and in close proximity would either be mixed across these variables or would share the same influence (weather, for example). With our statistical tools we can more formally confirm what Snow saw in the data - clean water was more important than any of the other factors he (or we) could think of. 
 
