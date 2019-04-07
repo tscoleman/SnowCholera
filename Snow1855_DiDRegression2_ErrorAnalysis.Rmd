@@ -1,6 +1,6 @@
 ---
 title: "John Snow Project - DiD Error Analysis"
-author: "[Thomas Coleman](http://www.hilerun.org/econ)"
+author: "[Thomas S. Coleman](http://www.hilerun.org/econ)"
 output: html_notebook
 ---
 # Difference in Differences Regressions - Error Analysis and Graphs for data from Snow 1855
@@ -28,6 +28,8 @@ For a brief introduction to Snow's work, see:
 + **The best popular exposition I have found**: Johnson, Steven. 2007. *The Ghost Map: The Story of London’s Most Terrifying Epidemic--and How It Changed Science, Cities, and the Modern World*. Reprint edition. New York: Riverhead Books.
 + **Another good popular version**: Hempel, Sandra. 2007. *The Strange Case of the Broad Street Pump: John Snow and the Mystery of Cholera*. First edition. Berkeley: University of California Press.
 + **Tufte's classic discussion of Snow's mapping** (a topic I don't cover here): Tufte, Edward R. 1997. *Visual Explanations: Images and Quantities, Evidence and Narrative*. 1st edition. Graphics Press.
++ **Biography**: Vinten-Johansen, Peter, Howard Brody, Nigel Paneth, Stephen Rachman, and Michael Russell Rip. 2003. *Cholera, Chloroform and the Science of Medicine: A Life of John Snow*. Oxford; New York: Oxford University Press. Linked on-line resources https://johnsnow.matrix.msu.edu/snowworks.php
+
 
 
 
