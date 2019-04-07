@@ -3,15 +3,19 @@ Data and code for analyzing John Snow's "South London" cholera data
 
 See my John Snow Project website: http://www.hilerun.org/econ/papers/snow for more detailed explanation of data and scripts
 
-Working paper with discussion of Snow, the data, and the statistics, on SSRN (long, roughly 90 pages): https://papers.ssrn.com/abstract=3262234
+**Working paper** with discussion of Snow, the data, and the statistics, on SSRN (long, roughly 90 pages): https://papers.ssrn.com/abstract=3262234
 
-These are RStudio notebooks, each with explanation and code. The notebook (.Rmd) can be run in RStudio. For each notebook there is an associated html sheet (.nb.html) which should be a self-contained web page that displays the results.
+**Data** (more detailed explanation at http://www.hilerun.org/econ/papers/snow)
 
-btw, if you want to extract just the R code, run
-- library (knitr)
-- knit('notebook.Rmd', tangle=TRUE)
+1. Snow1855_TableVII.csv - deaths by sub-district, assigned to water supplier, for first 4 weeks
+2. Snow1855_TableVIII.csv - deaths by sub-district, assigned to water supplier, for first 7 weeks ending 26th August 1854
+3. Snow1855_TableIX.csv - Snow's comparison of mortality rates for Southwark customers vs Lambeth customers
+4. Snow1855_TableXII.csv - deaths by sub-district (not assigned to water supplier) for 1849 and 1854 epidemics
+5. Snow1856_TableI.csv - (actually Tables I & II combined, so showing all 32 sub-districts) - deaths and population assigned to water supplier, by *sub-district*, for first 7 weeks ending 26th August 1854 (cross-checks with 1855 Table VIII)
+6. Snow1856_TableV.csv - deaths and population assigned to water supplier, by *District*, for the whole of the 1854 epidemic (cross-checks with 1855 Table XII)
+7. Snow1856_TableVI.csv - deaths by sub-district (not assigned to water supplier) for 1854 epidemic, with Snow's population-weighted predicted mortality
 
-and this will save *notebook.R* under your working directory
+**RStudio notebooks**, each with explanation and code. The notebook (.Rmd) can be run in RStudio. For each notebook there is an associated html sheet (.nb.html) which should be a self-contained web page that displays the results.
 
 Each notebook is designed to be self-contained and independent (in terms of code) from the others. The order for looking at and running these notebooks is:
 
@@ -41,3 +45,10 @@ Each notebook is designed to be self-contained and independent (in terms of code
   + Estimates count regressions to compare mortality rates by sub-district, allowing for the variation across sub-districts
   + This is the natural extension of Snow 1855 Table IX using sub-district population
   + Snow 1855 Table V: Counts for deaths (assigned to water supplier) by District and population by District
+
+btw, if you want to extract just the R code, run
+- library (knitr)
+- knit('notebook.Rmd', tangle=TRUE)
+
+and this will save *notebook.R* under your working directory
+
