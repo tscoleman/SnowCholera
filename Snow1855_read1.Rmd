@@ -1,6 +1,6 @@
 ---
 title: "John Snow Project: Reading and cross-checking 1855"
-author: "[Thomas S. Coleman](http://www.hilerun.org/econ)"
+author: "[Thomas Coleman](http://www.hilerun.org/econ)"
 output: html_notebook
 ---
 
@@ -37,6 +37,14 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute
 Try executing the chunk below by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
 
 ```{r}
+# Copyright (c) 2019, Thomas Coleman
+#
+#  -------  Licensed under BSD 2-Clause "Simplified" License  -------
+#
+# Results and discussion in "Causality in the Time of Cholera: John Snow as a Prototype 
+# for Causal Inference (Working Paper)" available at SSRN: https://papers.ssrn.com/abstract=3262234
+
+
 rm(list=ls())    # starts a fresh workspace
 #
 tablevii <- read.csv(file="Snow1855_TableVII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
