@@ -320,7 +320,7 @@ kable(regtabledid1856lin[c(1,3,9,10),c(2,4)],digits=3, caption = "Summary - Diff
 
 ```
 
-Then a code chunk for the various permuations of count regressions with population proportions, six regressions in total:
+Then a code chunk for the various permutations of count regressions with population proportions, six regressions in total:
 
 + Poisson and Negative Binomial
 + For each, no population density, yes population density, sub-district fixed effects.
