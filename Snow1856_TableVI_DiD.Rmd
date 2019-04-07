@@ -1,6 +1,6 @@
 ---
 title: "John Snow Project - 1856 Table VI and DiD Extension"
-author: "[Thomas Coleman](http://www.hilerun.org/econ)"
+author: "[Thomas S. Coleman](http://www.hilerun.org/econ)"
 output: html_notebook
 ---
 # Examining Snow's 1856 Table VI - Predicted Mortality and Diff-in-Diffs with Population Data
@@ -24,6 +24,8 @@ For a brief introduction to Snow's work, see:
 + **The best popular exposition I have found**: Johnson, Steven. 2007. *The Ghost Map: The Story of London’s Most Terrifying Epidemic--and How It Changed Science, Cities, and the Modern World*. Reprint edition. New York: Riverhead Books.
 + **Another good popular version**: Hempel, Sandra. 2007. *The Strange Case of the Broad Street Pump: John Snow and the Mystery of Cholera*. First edition. Berkeley: University of California Press.
 + **Tufte's classic discussion of Snow's mapping** (a topic I don't cover here): Tufte, Edward R. 1997. *Visual Explanations: Images and Quantities, Evidence and Narrative*. 1st edition. Graphics Press.
++ **Biography**: Vinten-Johansen, Peter, Howard Brody, Nigel Paneth, Stephen Rachman, and Michael Russell Rip. 2003. *Cholera, Chloroform and the Science of Medicine: A Life of John Snow*. Oxford; New York: Oxford University Press. Linked on-line resources https://johnsnow.matrix.msu.edu/snowworks.php
+
 
 
 
@@ -44,9 +46,7 @@ library("sandwich")
 library("lmtest") 
 
 # Read in the data from Snow 1855 "On the mode of communication of cholera"
-tablevii <- read.csv(file="Snow1855_TableVII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
 tableviii <- read.csv(file="Snow1855_TableVIII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
-tableix <- read.csv(file="Snow1855_TableIX.csv", header=TRUE, sep=",", skip=5,comment.char="#")
 tablexii <- read.csv(file="Snow1855_TableXII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
 
 # Read in the data from John Snow 1856, "Cholera and the water supply in the south district of London in 1854", 
@@ -310,8 +310,13 @@ regtabledid1856lin[c(9,10),4] <- summary(nb1popn_den)$coefficients[6,c(1,3)]
 regtabledid1856lin[11,4] <- summary(nb1popn_den)$deviance
 regtabledid1856lin[c(5,6),4] <- summary(nb1popn_den)$coefficients[3,c(1,3)]
 regtabledid1856lin[c(7,8),4] <- summary(nb1popn_den)$coefficients[4,c(1,3)]
+#regtabledid1856lin[12,4] <- 10000 * sum(nb1popn_den$fitted.values[29:40]) / sum(regdata$pop1851[29:40])
+#regtabledid1856lin[13,4] <- 10000 * sum(nb1popn_den$fitted.values[41:56]) / sum(regdata$pop1851[41:56])
 regtabledid1856lin[c(12,13),4] <- 10000 * c(exp(sum(summary(nb1popn_den)$coefficients[c(1,5)])),
 	exp(sum(summary(nb1popn_den)$coefficients[c(1,2,3,5)])))
+
+kable(regtabledid1856lin[c(1,3,9,10),c(2,4)],digits=3, caption = "Summary - Diff-in-Diffs Comparison Using Population Proportions",format='pandoc')
+
 
 ```
 
