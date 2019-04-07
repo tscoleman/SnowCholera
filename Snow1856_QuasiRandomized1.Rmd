@@ -1,0 +1,659 @@
+---
+title: "John Snow Project - Quasi-Randomized with Population Data"
+author: "[Thomas S. Coleman](http://www.hilerun.org/econ)"
+output: html_notebook
+---
+# Examining Snow's 1855 Table VIII & 1856 Table V Using Population by Supplier
+
+#### See "Causality in the Time of Cholera" working paper at https://papers.ssrn.com/abstract=3262234 and my [John Snow project website](http://www.hilerun.org/econ/papers/snow)
+
+#### This notebook is licensed under the [BSD 2-Clause License](https://opensource.org/licenses/BSD-2-Clause)
+
+### Introduction
+
+This notebook extends the analysis of Snow's 1855 Table IX (quasi-randomized comparison) using sub-district population data from Snow 1856 Tables I and II, and District data from Snow 1856 Table VI. In 1855 Snow did not have population estimates by supplier These estimates became available with the publication of Simon 1856. 
+
+With population estimates by supplier there are now two sets of data that we can analyze:
+
+1. **Quasi-Randomized Comparison by Sub-district**: For the 7 weeks ending 26th August, for Southwark vs Lambeth. Snow (1855) Table VIII gives deaths by supplier (Southwark & Vauxhall, Lambeth, Other) for the first seven weeks (ending 26th August 1854). This formed the basis of Snow's 1855 Table IX, measuring a treatment effect in a quasi-randomized trial. With population by supplier by sub-district we can examine each sub-district and test for the difference between Southwark versus Lambeth much more carefully. This only covers the first seven weeks (through 26th August) and we also have to recognize the problems with the population estimates which are more serious at the sub-district than District level. 
+
+2. **Quasi-Randomized Comparison by District**: For the full 1854 outbreak (ending October), for Southwark, Lambeth, “Other”. Snow's 1856 Table V gives deaths by supplier by nine Districts for the full 1854 period (ending October 1854).These data allow testing for the Southwark versus Lambeth effect in a quasi-randomized trial framework at a somewhat more aggregated level than the sub-district data above, but covering the full 1854 cholera outbreak 
+
+
+For a brief introduction to Snow's work, see:
+
++ **Snow's original 1855 monograph** (it is masterful): Snow, John. 1855. *On the Mode of Communication of Cholera*. 2nd ed. London: John Churchill. http://archive.org/details/b28985266.
++ **The best popular exposition I have found**: Johnson, Steven. 2007. *The Ghost Map: The Story of London’s Most Terrifying Epidemic--and How It Changed Science, Cities, and the Modern World*. Reprint edition. New York: Riverhead Books.
++ **Another good popular version**: Hempel, Sandra. 2007. *The Strange Case of the Broad Street Pump: John Snow and the Mystery of Cholera*. First edition. Berkeley: University of California Press.
++ **Tufte's classic discussion of Snow's mapping** (a topic I don't cover here): Tufte, Edward R. 1997. *Visual Explanations: Images and Quantities, Evidence and Narrative*. 1st edition. Graphics Press.
++ **Biography**: Vinten-Johansen, Peter, Howard Brody, Nigel Paneth, Stephen Rachman, and Michael Russell Rip. 2003. *Cholera, Chloroform and the Science of Medicine: A Life of John Snow*. Oxford; New York: Oxford University Press. Linked on-line resources https://johnsnow.matrix.msu.edu/snowworks.php
+
+
+
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. The results are also saved in a self-contained html document with the suffix *.nb.html*. If you want pure r code (for example to run outside RStudio) you can easily extract code with the command *knit('notebook.Rmd',tangle=TRUE)* which will save a file 'notebook.R' under your working directory.
+
+Try executing the chunk below by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+``````{r message=FALSE, results='hide'}
+rm(list=ls())    # starts a fresh workspace
+#
+library(knitr)
+options(scipen=5)
+# The following libraries are used for the Negative Binomial regression and the robust standard error analysis
+#install.packages("sandwich")
+#install.packages("lmtest")
+library("MASS")
+library("sandwich") 
+library("lmtest") 
+
+# Read in the data from Snow 1855 "On the mode of communication of cholera"
+tablevii <- read.csv(file="Snow1855_TableVII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+tableviii <- read.csv(file="Snow1855_TableVIII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+
+# Read in the data from John Snow 1856, "Cholera and the water supply in the south district of London in 1854", 
+#   These data were copied from the 1936 book "Snow on cholera, being a reprint of two papers" edited by Frost
+# Table V by District (for running Poisson & Neg Binomial count regressions)
+# Table VI by sub-district (for running Koch & Denike's tests)
+
+# Table I "Showing the results of the Author's personal Inquiry into Twenty-One Sub-Districts"
+# Table II "Showing the results of Inquiry made by Mr. Whiting in Eleven Sub-Districts"
+# (My "tablei_1856" combines Snow's Tables I & II)
+
+tablei_1856 <- read.csv(file="Snow1856_TableI.csv",
+  header=TRUE, sep=",", skip=5,comment.char="#")
+
+tableV_1856 <- read.csv(file="Snow1856_TableV.csv",
+  header=TRUE, sep=",", skip=5,comment.char="#")
+
+
+```
+
+
+Calculate mortality rates for all sub-districts
+
+```{r}
+# Calculate mortality rates for all sub-districts
+tablei_1856$rateSouthwark <- 10000 * tablei_1856$deathsSouthwark / tablei_1856$southwark_pop
+tablei_1856$rateLambeth <- 10000 * tablei_1856$deathsLambeth / tablei_1856$lambeth_pop
+tablei_1856$rateboth <- 10000 * (tablei_1856$deathsSouthwark + tablei_1856$deathsLambeth) / 
+     (tablei_1856$southwark_pop + tablei_1856$lambeth_pop)
+tablei_1856$rateoverall <- 10000 * tablei_1856$deathsOverall / tablei_1856$pop1851
+
+```
+
+
+
+###Count Regressions for Snow 1855 Table VIII (first 7 seeks, by sub-district)
+
+
+####Prepare Data
+
+To run the regressions we need to stack the data, do some minor data clean-up (convert some non-numerics to numerics), and make an indicator variable for supplier (I use "xLambeth" so that "Southwark" is the excluded category - R excludes the first category by alphabetic sort).
+
+
+```{r}
+# Prepare data for the sub-districts of the jointly-supplied "next 16" sub-districts
+# There is data for Southwark-supplied customers and Lambeth-supplied customers 
+# so there are two sets of observations for each sub-district
+x1 <- subset(tablei_1856,supplier == "SouthwarkVauxhall_Lambeth")
+xSouthwark <- x1[c("subDistrict","district","supplier")]
+xSouthwark$deaths <- x1$deathsSouthwark
+xSouthwark$population <- x1$southwark_pop
+xSouthwark$rate <- 10000 * xSouthwark$deaths / xSouthwark$population
+xSouthwark$seq <- c(seq(13,12+length(xSouthwark$deaths)))
+xSouthwark$supplier <- "Southwark"
+# the "as.character ..." is necessary because pop_per_house is stored as a factor, not a numeric
+xSouthwark$pop_per_house <- as.numeric(as.character(x1$pop_per_house))  
+#xSouthwark$dum1854 <- 0
+xLambeth <- x1[c("subDistrict","district","supplier")]
+xLambeth$deaths <- x1$deathsLambeth
+xLambeth$population <- x1$lambeth_pop
+xLambeth$rate <- 10000 * xLambeth$deaths / xLambeth$population
+xLambeth$seq <- c(seq(13,12+length(xLambeth$deaths)))
+xLambeth$supplier <- "xLambeth"
+# the "as.character ..." is necessary because pop_per_house is stored as a factor, not a numeric
+xLambeth$pop_per_house <- as.numeric(as.character(x1$pop_per_house))
+
+
+regdata1855VIIjoint <- rbind(xSouthwark,xLambeth)
+
+# Prepare data for the sub-districts of the Southwark-supplied "first 12" sub-districts
+# There is data only for Southwark-supplied customers customers (although the population
+# numbers quoted in Snow 1856 Tables I & II show population for Lambeth customers for some
+# of these sub-districts, as Snow points out this is incorrect. Thus I am imposing assumption
+# that population and counts for Lambeth-supplied customers for these sub-districts is zero)
+# so there are two sets of observations for each sub-district
+x1 <- subset(tablei_1856,supplier == "SouthwarkVauxhall")
+xSouthwarkonly <- x1[c("subDistrict","district","supplier")]
+xSouthwarkonly$deaths <- x1$deathsSouthwark
+xSouthwarkonly$population <- x1$southwark_pop
+xSouthwarkonly$rate <- 10000 * xSouthwarkonly$deaths / xSouthwarkonly$population
+xSouthwarkonly$seq <- c(seq(1,length(xSouthwarkonly$deaths)))
+xSouthwarkonly$supplier <- "Southwark"
+# the "as.character ..." is necessary because pop_per_house is stored as a factor, not a numeric
+xSouthwarkonly$pop_per_house <- as.numeric(as.character(x1$pop_per_house))  
+#xSouthwark$dum1854 <- 0
+
+regdata1855VIIboth <- rbind(xSouthwarkonly,xSouthwark,xLambeth)
+
+
+```
+
+
+
+
+####Poisson Regressions
+
+This code chunk runs the Poisson regressions, but I am not printing them out here.
+
+```{r}
+# Poisson with same rate for all sub-districts (no sub-district fixed effects)
+pois1_TableVIII <- glm(regdata1855VIIjoint$deaths ~ regdata1855VIIjoint$supplier 
+	+ offset(log(regdata1855VIIjoint$population)), family=poisson)
+pois1_TableVIIIrobustse <- coeftest(pois1_TableVIII, vcov = vcovHC(pois1_TableVIII))
+#summary(pois1_TableVIII))
+#print(pois1_TableVIIIrobustse)
+
+# Poisson with population (housing) density
+pois1pop_TableVIII <- glm(regdata1855VIIjoint$deaths ~ regdata1855VIIjoint$supplier + regdata1855VIIjoint$pop_per_house 
+	+ offset(log(regdata1855VIIjoint$population)), family=poisson)
+pois1pop_TableVIIIrobustse <- coeftest(pois1pop_TableVIII, vcov = vcovHC(pois1pop_TableVIII))
+#summary(pois1pop_TableVIII))
+#print(pois1pop_TableVIIIrobustse)
+
+# Poisson with different rates by sub-district (fixed effects)
+pois2_TableVIII <- glm(regdata1855VIIjoint$deaths ~ regdata1855VIIjoint$supplier + regdata1855VIIjoint$subDistrict
+	+ offset(log(regdata1855VIIjoint$population)), family=poisson)
+pois2_TableVIIIrobustse <- coeftest(pois2_TableVIII, vcov = vcovHC(pois2_TableVIII))
+#summary(pois2_TableVIII))
+#print(pois2_TableVIIIrobustse)
+
+# Quasi-Poisson, allowing dispersion to be a free parameter
+poisQuasi <- glm(regdata1855VIIjoint$deaths ~ regdata1855VIIjoint$supplier 
+	+ offset(log(regdata1855VIIjoint$population)), family=quasipoisson)
+poisQuasirobustse <- coeftest(poisQuasi, vcov = vcovHC(poisQuasi))
+#summary(poisQuasi))
+
+
+
+```
+
+As with other regressions with cholera mortality data, these Poisson regressions have trouble with "overdispersion" - more variation across sub-districts than can be accounted for simply by variation in Poisson counts. I discuss and summarize the results below. 
+
+
+
+####Negative Binomial Regressions
+
+The following code chunk runs Negative Binomial regressions, both with and without population density. Including population density (housing density) tests whether crowding is an important contributing factor to cholera mortality, and whether difference in water supply is still important when we include density. The conclusion, discussed more below, is that population density really does not matter. 
+
+```{r}
+# Negative Binomial 
+nb1_TableVIII <- glm.nb(regdata1855VIIjoint$deaths ~ regdata1855VIIjoint$supplier + offset(log(regdata1855VIIjoint$population)))
+nb1_TableVIIIrobustse <- coeftest(nb1_TableVIII, vcov = vcovHC(nb1_TableVIII))
+#summary(nb1_TableVIII))
+#print(nb1_TableVIIIrobustse)
+
+
+# Negative Binomial with district fixed effects
+# Doesn't converge so comment out 
+#nb2_TableVIII <- glm.nb(regdata1855VIIjoint$deaths ~ regdata1855VIIjoint$supplier + regdata1855VIIjoint$subDistrict
+#	+ offset(log(regdata1855VIIjoint$population)))
+#nb2_TableVIIIrobustse <- coeftest(nb2_TableVIII, vcov = vcovHC(nb2_TableVIII))
+#summary(nb2_TableVIII))
+#print(nb2_TableVIIIrobustse)
+
+# The following does robust standard errors. I cribbed this from
+#  Start: 
+#  https://stat.ethz.ch/pipermail/r-help/2008-May/161591.html
+#Then click on "Next message:" for the second. Unfortunately, 
+#at that point the thread broke (Paul next responded to the list 
+#as a reply to an off-list message I sent him). So to continue, 
+#next take Achim's URL above: 
+#  https://stat.ethz.ch/pipermail/r-help/2008-May/161640.html
+#and thereafter continue to click on "Next message:" until the 
+#thread runs out. 
+
+# cf https://stats.stackexchange.com/questions/117052/replicating-statas-robust-option-in-r
+# STATA seems to use HC1 for robust BUT with n-1 instead of n-k (see "sandwich.pdf" and 
+#	https://stats.stackexchange.com/questions/89999/how-to-replicate-statas-robust-binomial-glm-for-proportion-data-in-r)
+
+# Negative Binomial regression with population density as a regressor
+# Idea is to test Snow's 1856 assertion that density has no effect after
+# taking into account the water supplier (Southwark vs Lambeth)
+# Results seem to show that pop density is not significant.
+# Remember - To get "Lambeth effect" need to take const + coeff(density)*avg(density)
+nb1pop_TableVIII <- glm.nb(regdata1855VIIjoint$deaths ~ regdata1855VIIjoint$supplier + regdata1855VIIjoint$pop_per_house 
+	+ offset(log(regdata1855VIIjoint$population)))
+nb1pop_TableVIIIrobustse <- coeftest(nb1pop_TableVIII, vcov = vcovHC(nb1pop_TableVIII))
+#summary(nb1pop_TableVIII))
+#print(nb1pop_TableVIIIrobustse)
+
+
+nb1pop_TableVIIIboth <- glm.nb(regdata1855VIIboth$deaths ~ regdata1855VIIboth$supplier + regdata1855VIIboth$pop_per_house 
+	+ offset(log(regdata1855VIIboth$population)))
+nb1pop_TableVIIIbothrobustse <- coeftest(nb1pop_TableVIIIboth, vcov = vcovHC(nb1pop_TableVIIIboth))
+#summary(nb1pop_TableVIIIboth))
+#print(nb1pop_TableVIIIbothrobustse)
+
+
+
+```
+
+####Summary Table
+
+The following code chunk creates a large table with summary statistics from a variety of regressions for the 1855 Table VIII data:
+
++ Poisson: basic; including population (housing) density; Fixed effects; Quasi-Poisson (allowing for over-dispersion)
++ Negative Binomial: basic; including population (housing) density
+
+```{r}
+# Create table with regression results 
+regtable1855TableVIII <- matrix(0,nrow=16,ncol=8)
+colnames(regtable1855TableVIII) <- c("Poiss","Poiss pop","Poiss FE","Poiss Quasi","NB","NB pop",
+	"NB FE","NB all reg pop")
+rownames(regtable1855TableVIII) <- c("Lambeth effect","SE","z-value","p value","robust SE","z value",
+	"ratio effect",
+	"theta","sub-dist FE","pop den",
+	"SE","z-value","resid dev", "p-value","Southwark Pred Mort","Lambeth Pred Mort")
+# Populate the table from the regressions
+# calculate population for Southwark & Lambeth
+xs <- sum(regdata1855VIIjoint$population[1:16])
+xl <- sum(regdata1855VIIjoint$population[17:32])
+# Poisson no sub-district FEs 
+regtable1855TableVIII[c(1,2,3,4),1] <- summary(pois1_TableVIII)$coefficients[2,c(1,2,3,4)]
+regtable1855TableVIII[c(5,6),1] <- pois1_TableVIIIrobustse[2,c(2,3)]
+regtable1855TableVIII[7,1] <- exp(-regtable1855TableVIII[1,1])
+regtable1855TableVIII[13,1] <- summary(pois1_TableVIII)$deviance
+regtable1855TableVIII[14,1] <- 1 - pchisq(pois1_TableVIII$deviance,pois1_TableVIII$df.residual)
+regtable1855TableVIII[15,1] <- 10000 * sum(pois1_TableVIII$fitted.values[1:16]) / xs
+regtable1855TableVIII[16,1] <- 10000 * sum(pois1_TableVIII$fitted.values[17:32]) / xl
+# Poisson population density
+regtable1855TableVIII[c(1,2,3,4),2] <- summary(pois1pop_TableVIII)$coefficients[2,c(1,2,3,4)]
+regtable1855TableVIII[c(5,6),2] <- pois1pop_TableVIIIrobustse[2,c(2,3)]
+regtable1855TableVIII[7,2] <- exp(-regtable1855TableVIII[1,2])
+regtable1855TableVIII[c(10,11,12),2] <- summary(pois1pop_TableVIII)$coefficients[3,c(1,2,3)]
+regtable1855TableVIII[13,2] <- summary(pois1pop_TableVIII)$deviance
+regtable1855TableVIII[14,2] <- 1 - pchisq(pois1pop_TableVIII$deviance,pois1pop_TableVIII$df.residual)
+regtable1855TableVIII[15,2] <- 10000 * sum(pois1pop_TableVIII$fitted.values[1:16]) / xs
+regtable1855TableVIII[16,2] <- 10000 * sum(pois1pop_TableVIII$fitted.values[17:32]) / xl
+# Poisson yes sub-district FEs
+regtable1855TableVIII[c(1,2,3,4),3] <- summary(pois2_TableVIII)$coefficients[2,c(1,2,3,4)]
+regtable1855TableVIII[c(5,6),3] <- pois2_TableVIIIrobustse[2,c(2,3)]
+regtable1855TableVIII[7,3] <- exp(-regtable1855TableVIII[1,3])
+regtable1855TableVIII[13,3] <- summary(pois2_TableVIII)$deviance
+regtable1855TableVIII[14,3] <- 1 - pchisq(pois2_TableVIII$deviance,pois2_TableVIII$df.residual)
+regtable1855TableVIII[15,3] <- 10000 * sum(pois2_TableVIII$fitted.values[1:16]) / xs
+regtable1855TableVIII[16,3] <- 10000 * sum(pois2_TableVIII$fitted.values[17:32]) / xl
+# Quasi-Poisson no sub-district FEs
+regtable1855TableVIII[c(1,2,3,4),4] <- summary(poisQuasi)$coefficients[2,c(1,2,3,4)]
+regtable1855TableVIII[7,4] <- exp(-regtable1855TableVIII[1,4])
+regtable1855TableVIII[13,4] <- summary(poisQuasi)$deviance
+regtable1855TableVIII[14,4] <- 1 - pchisq(poisQuasi$deviance,poisQuasi$df.residual)
+regtable1855TableVIII[15,4] <- 10000 * sum(poisQuasi$fitted.values[1:16]) / xs
+regtable1855TableVIII[16,4] <- 10000 * sum(poisQuasi$fitted.values[17:32]) / xl
+# NB no sub-district FEs
+regtable1855TableVIII[c(1,2,3,4),5] <- summary(nb1_TableVIII)$coefficients[2,c(1,2,3,4)]
+regtable1855TableVIII[c(5,6),5] <- nb1_TableVIIIrobustse[2,c(2,3)]
+regtable1855TableVIII[7,5] <- exp(-regtable1855TableVIII[1,5])
+regtable1855TableVIII[8,5] <- summary(nb1_TableVIII)$theta
+regtable1855TableVIII[13,5] <- summary(nb1_TableVIII)$deviance
+regtable1855TableVIII[14,5] <- 1 - pchisq(nb1_TableVIII$deviance,nb1_TableVIII$df.residual)
+regtable1855TableVIII[15,5] <- 10000 * sum(nb1_TableVIII$fitted.values[1:16]) / xs
+regtable1855TableVIII[16,5] <- 10000 * sum(nb1_TableVIII$fitted.values[17:32]) / xl
+# NB including population density
+regtable1855TableVIII[c(1,2,3,4),6] <- summary(nb1pop_TableVIII)$coefficients[2,c(1,2,3,4)]
+regtable1855TableVIII[c(5,6),6] <- nb1pop_TableVIIIrobustse[2,c(2,3)]
+regtable1855TableVIII[7,6] <- exp(-regtable1855TableVIII[1,6])
+regtable1855TableVIII[c(10,11,12),6] <- summary(nb1pop_TableVIII)$coefficients[3,c(1,2,3)]
+regtable1855TableVIII[8,6] <- summary(nb1pop_TableVIII)$theta
+regtable1855TableVIII[13,6] <- summary(nb1pop_TableVIII)$deviance
+regtable1855TableVIII[14,6] <- 1 - pchisq(nb1pop_TableVIII$deviance,nb1pop_TableVIII$df.residual)
+regtable1855TableVIII[15,6] <- 10000 * sum(nb1pop_TableVIII$fitted.values[1:16]) / xs
+regtable1855TableVIII[16,6] <- 10000 * sum(nb1pop_TableVIII$fitted.values[17:32]) / xl
+# NB yes sub-district FEs
+#regtable1855TableVIII[c(1,2,3,4),7] <- summary(nb2_TableVIII)$coefficients[2,c(1,2,3,4)]
+#regtable1855TableVIII[c(5,6),7] <- nb2_TableVIIIrobustse[2,c(2,3)]
+#regtable1855TableVIII[7,7] <- exp(-regtable1855TableVIII[1,7])
+#regtable1855TableVIII[8,7] <- summary(nb2_TableVIII)$theta
+#regtable1855TableVIII[13,7] <- summary(nb2_TableVIII)$deviance
+#regtable1855TableVIII[15,7] <- 10000 * sum(nb2_TableVIII$fitted.values[1:16]) / xs
+#regtable1855TableVIII[16,7] <- 10000 * sum(nb2_TableVIII$fitted.values[17:32]) / xl
+# NB including population density, for all sub-district
+regtable1855TableVIII[c(1,2,3,4),8] <- summary(nb1pop_TableVIIIboth)$coefficients[2,c(1,2,3,4)]
+regtable1855TableVIII[c(5,6),8] <- nb1pop_TableVIIIbothrobustse[2,c(2,3)]
+regtable1855TableVIII[7,8] <- exp(-regtable1855TableVIII[1,8])
+regtable1855TableVIII[c(10,11,12),8] <- summary(nb1pop_TableVIIIboth)$coefficients[3,c(1,2,3)]
+regtable1855TableVIII[8,8] <- summary(nb1pop_TableVIIIboth)$theta
+regtable1855TableVIII[13,8] <- summary(nb1pop_TableVIIIboth)$deviance
+regtable1855TableVIII[14,8] <- 1 - pchisq(nb1pop_TableVIIIboth$deviance,nb1pop_TableVIIIboth$df.residual)
+regtable1855TableVIII[15,8] <- 10000 * sum(nb1pop_TableVIIIboth$fitted.values[1:28]) / sum(regdata1855VIIboth$population[1:28])
+regtable1855TableVIII[16,8] <- 10000 * sum(nb1pop_TableVIIIboth$fitted.values[29:44]) / sum(regdata1855VIIboth$population[29:44])
+
+```
+
+
+
+
+```{r}
+
+kable(regtable1855TableVIII[c(1,3,10,12,13,14,15,16),c(2,3,6)],digits=3, caption = "Summary - Quasi-Randomized Regressions, 1855 Table VIII (7 weeks ending 26th Aug)",format='pandoc')
+
+```
+
+I am not printing out all the regressions (you can check the summary statistics in the table), but the results are:
+
++ Simple Poisson has a high Residual Deviance ("overdispersion"), implying that Poisson does not fit the data well, and that the estimated standard errors are too small.
++ Including population (housing) density has a negligible effect
++ Including sub-district fixed effects gives a Residual Deviance that is marginally significant (Residual Deviance = `r round(pois2_TableVIII$deviance,2)`, p-value = `r round(1-pchisq(pois2_TableVIII$deviance,pois2_TableVIII$df.residual),3)`). In other words Poisson with each sub-district having a different rate fits marginally. 
++ Negative Binomial fits the data slightly better (in terms of Residual Deviance - it is higher than Poisson with Fixed Effects, but requires fewer explanatory variables to reduce the Deviance). 
++ In all cases the "Lambeth Effect" is large (roughly `r round(pois2_TableVIII$coefficients[2],1)` for a ratio effect of `r round(exp(-pois2_TableVIII$coefficients[2]),1)`). 
++ The "Lambeth Effect" is statistically significant (has a very large z-value). We cannot rely on the z-value for the basic Poisson regression (becuase the model does not fit well - the Residual Deviance is large), and we want to be cautious even with the Poisson FE model. But the Negative Binomial still has a very large z-value. Further, we can calculate robust standard errors for all the regressions, and these all have large z-values (8 or larger)
+
+
+####Graphs Showing Sub-District Variation
+
+Graphing the actual versus fitted values, together with approximate standard errors, helps us see why the Poisson regression does not fit the data. The following code chunk produces the graph. 
+
+```{r}
+# "Worker" function to plot mean, predicted, and error bars
+plot2_worker <- function(yseq, xmean,xlimdn,xpred,xlimup,title) {            
+	xplot <- plot(xmean, yseq,
+	    xlim=range(c(xmean, xpred,xlimdn,xlimup)),
+	    ylim=rev(range(yseq)), col="red",
+	    main=title,xlab="Mortality rate actual (red filled) vs predicted (empty circle)",ylab="sub-district",
+	    pch=19)
+	lines(xpred, yseq, type="p",
+	    xlim=range(c(xmean, xpred,xlimdn,xlimup)),
+	    ylim=rev(range(yseq)), 
+	    pch=1)
+	# horizontal error bars
+	xplot <- arrows(xlimdn, yseq, xlimup, yseq, length=0.05, angle=90, code=3,lty=3)
+	xplot
+}
+
+# Poisson Regression Graph
+
+# 2.5, mean, 97.5 quantiles for the "next 16" sub-districts, separately by Southwark vs 
+# Lambeth populations, for Poisson regression
+xx1count <- pois1_TableVIII$fitted.values
+xx1rate <- 10000 * xx1count / regdata1855VIIjoint$population
+
+x25 <- 10000 * qpois(.025,lambda=xx1count[1:16]) / regdata1855VIIjoint$population[1:16]
+x975 <- 10000 * qpois(.975,lambda=xx1count[1:16]) / regdata1855VIIjoint$population[1:16]
+#pdf(paste("../paper/figures/errbar_pois1_TableVIII","c.pdf",sep=""))
+	p5 <- plot2_worker(13:28, regdata1855VIIjoint$rate[1:16],x25,xx1rate[1:16],x975,
+		"Joint 1854 Poisson Act vs Pred, Southwark Supplied")
+#dev.off()
+x25 <- 10000 * qpois(.025,lambda=xx1count[17:32]) / regdata1855VIIjoint$population[17:32]
+x975 <- 10000 * qpois(.975,lambda=xx1count[17:32]) / regdata1855VIIjoint$population[17:32]
+x975 <- pmin(x975,20)
+#pdf(paste("../paper/figures/errbar_pois1_TableVIII","d.pdf",sep=""))
+	p6 <- plot2_worker(13:28, regdata1855VIIjoint$rate[17:32],x25,xx1rate[17:32],x975,
+	   "Joint 1854 Poisson Act vs Pred, Lambeth Supplied")
+#dev.off()
+```
+
+The observed mortality rates (red circles) are quite variable compared with the fitted values, often falling outside the approximate error bars. The difference between Soutwhark & Vauxhall Co. customers (the first graph) versus Lambeth Co. customers is nonethless very large. 
+
+We can accomodate the outliers within the error bars better either by allowing each sub-district to be different (including sub-district fixed effects), or by widening the error bars themselves (assuming the errors are Negative Binomial, essentially that the sub-districts have random mortality rates). For this set of data either approach works somewhat well, as shown by the Residual Deviance calculations in the table above. 
+
+The following two code chunks will produce graphs for Poisson FEs and Negative Binomial. I have commented out the actual plot command (the call to "plot2_worker") but you can easily run these chunks youself to see the graphs. 
+
+```{r}
+
+# Poisson Regression FE Graph
+
+# 2.5, mean, 97.5 quantiles for the "next 16" sub-districts, separately by Southwark vs 
+# Lambeth populations, for Poisson regression
+xx1count <- pois2_TableVIII$fitted.values
+xx1rate <- 10000 * xx1count / regdata1855VIIjoint$population
+
+x25 <- 10000 * qpois(.025,lambda=xx1count[1:16]) / regdata1855VIIjoint$population[1:16]
+x975 <- 10000 * qpois(.975,lambda=xx1count[1:16]) / regdata1855VIIjoint$population[1:16]
+#pdf(paste("../paper/figures/errbar_pois2_TableVIII","c.pdf",sep=""))
+#	p5 <- plot2_worker(13:28, regdata1855VIIjoint$rate[1:16],x25,xx1rate[1:16],x975, "Joint 1854 Poisson FE Act vs Pred, Southwark Supplied")
+#dev.off()
+x25 <- 10000 * qpois(.025,lambda=xx1count[17:32]) / regdata1855VIIjoint$population[17:32]
+x975 <- 10000 * qpois(.975,lambda=xx1count[17:32]) / regdata1855VIIjoint$population[17:32]
+x975 <- pmin(x975,20)
+#pdf(paste("../paper/figures/errbar_pois2_TableVIII","d.pdf",sep=""))
+#	p6 <- plot2_worker(13:28, regdata1855VIIjoint$rate[17:32],x25,xx1rate[17:32],x975,"Joint 1854 Poisson FE Act vs Pred, Lambeth Supplied")
+#dev.off()
+```
+
+
+```{r}
+
+# Negative Binomial Population Density Graph
+# Note the difference from the code chunks above - using qnbinom() rather than qpoiss()
+
+# 2.5, mean, 97.5 quantiles for the "next 16" sub-districts, separately by Southwark vs 
+# Lambeth populations
+theta <- nb1pop_TableVIII$theta
+xx1count <- nb1pop_TableVIII$fitted.values
+xx1rate <- 10000 * xx1count / regdata1855VIIjoint$population
+
+x25 <- 10000 * qnbinom(.025,size=theta,mu=xx1count[1:16]) / regdata1855VIIjoint$population[1:16]
+x975 <- 10000 * qnbinom(.975,size=theta,mu=xx1count[1:16]) / regdata1855VIIjoint$population[1:16]
+#pdf(paste("../paper/figures/errbar_nb1pop_TableVIII","c.pdf",sep=""))
+#	p5 <- plot2_worker(13:28, regdata1855VIIjoint$rate[1:16],x25,xx1rate[1:16],x975,"Joint 1854 NegBinom+PopDen Act vs Pred, Southwark Supplied")
+#dev.off()
+x25 <- 10000 * qnbinom(.025,size=theta,mu=xx1count[17:32]) / regdata1855VIIjoint$population[17:32]
+x975 <- 10000 * qnbinom(.975,size=theta,mu=xx1count[17:32]) / regdata1855VIIjoint$population[17:32]
+x975 <- pmin(x975,20)
+#pdf(paste("../paper/figures/errbar_nb1pop_TableVIII","d.pdf",sep=""))
+#	p6 <- plot2_worker(13:28, regdata1855VIIjoint$rate[17:32],x25,xx1rate[17:32],x975,"Joint 1854 NegBinom+PopDen Act vs Pred, Lambeth Supplied")
+#dev.off()
+```
+
+####Conclusion
+
+In summary, mortality data by sub-district for the seven weeks ending 26th August 1854, split by water supplier, strongly support the conclusion that water supply (dirty for Southwark & Vauxhall Co., clean for Lambeth Co.) has a very large impact on mortality. This conclusion holds in the presence of large variations across sub-districts. The effect of clean water is dramatically larger than, and is unaffected by, variation in housing density. 
+
+
+
+
+
+
+###Count Regressions for Snow 1856 Table V (by District)
+
+Snow 1856 Table V shows deaths by District (9 Districts rather than 32 sub-districts) and water source (Southwark Co, Lambeth Co, "Other"). 
+
+```{r}
+kable(tableV_1856[,c("district","deaths_southwark","deaths_lambeth","deaths_pumps","deaths_unascertained","deaths_total")],digits=3, caption = "Deaths by Supplier from 1856 Table V",format='pandoc')
+
+```
+
+
+There are two advantages and two disadvantages relative to Snow 1855 Table VIII:
+
+**Advantages**: Deaths cover the complete epidemic (through October 1854) which matches Snow 1855 Table XII; Fewer problems with poor population estimates for Southwark versus Lambeth customers
+
+**Disadvantage**: Many more "not ascertained" or "unascertained" cases in assigning deaths within District to water source (Southwark Co or Lambeth Co - the Registrar-General was far less careful collecting data after 26th August than Snow had been up to 26th August); Less geographic or location detail, with deaths reported by District rather than sub-district. 
+
+
+####Prepare Data
+
+There are two substantive modifications to the data that we have to make (apart from simply stacking the data to set up for regressions):
+
++ Allocate the "not ascertained" (or "unascertained") deaths within a District to supplier, the Southwark & Vauxhall Co. or the Lambeth Co. As suggested by Snow, the simplest and most reasonable approach seems to be simply allocating by the within-District proportions (see Snow 1856 p. 247: "I, therefore, concluded that I could not be wrong in dividing the non-ascertained cases between the two companies in the same proportion as those which were ascertained"). Because we will use these data for count regressions (which require integer values), I round the result.
++ Remove counts for Bermondsey and Newington for "Other" because they show negative "Other" population (Southwark + Lambeth combined estimated population greater than 1851 census). This is not a good way to handle the problem but I can't figure out any better
+
+
+```{r}
+# Allocate "unascertained" within Registration District according to ratio of observed 
+# Southwark vs Lambeth deaths
+tableV_1856$deaths_southwark_adj <- tableV_1856$deaths_southwark + round(tableV_1856$deaths_unascertained*tableV_1856$deaths_southwark/(tableV_1856$deaths_southwark+tableV_1856$deaths_lambeth),0)
+
+tableV_1856$deaths_lambeth_adj <- tableV_1856$deaths_lambeth + round(tableV_1856$deaths_unascertained*tableV_1856$deaths_lambeth/(tableV_1856$deaths_southwark+tableV_1856$deaths_lambeth),0)
+
+x1 <- tableV_1856[1:9,]
+# Southwark
+xsouthwark <- x1[c("district","districtID","density_Snow","pop_southwark","deaths_southwark_adj")]
+colnames(xsouthwark) <- c("district","districtID","density_Snow","pop","deaths_adj")
+xsouthwark$supplier <- "Southwark"
+# Lambeth
+xlambeth <- x1[c("district","districtID","density_Snow","pop_lambeth","deaths_lambeth_adj")]
+colnames(xlambeth) <- c("district","districtID","density_Snow","pop","deaths_adj")
+xlambeth$supplier <- "xLambeth"
+# Remove St. Olave, Southwark and Rotherhithe from Lambeth data (since 0 population)
+xlambeth <- xlambeth[-c(2,9),]
+# Other
+xother <- x1[c("district","districtID","density_Snow","pop_lambeth","deaths_lambeth_adj")]
+colnames(xother) <- c("district","districtID","density_Snow","pop","deaths_adj")
+xother$pop <- x1$pop1851 - (x1$pop_southwark + x1$pop_lambeth)
+xother$deaths_adj <- x1$deaths_pumps
+xother$supplier <- "xOther"
+# Remove Bermondsey & Newington because they show negative pump population (Southwark + Lambeth
+# combined estimated population greater than 1851 census)
+# This is not a good way to handle the problem but I can't figure out any better
+xother <- xother[-c(3,5),]
+
+regdataV_1856 <- rbind(xsouthwark,xlambeth)
+regdataV_1856_TableV <- rbind(xsouthwark,xlambeth,xother)
+
+
+```
+
+
+####Poisson Regressions
+
+The following code chunk runs Poisson regression (but does not print out results): basic, with population density, Fixed Effects.
+
+```{r}
+# -------  Now Count Regressions with Supplier = Southwark, Lambeth, and Other 
+# Poisson with no density
+pois1_TableV <- glm(regdataV_1856_TableV$deaths_adj ~ regdataV_1856_TableV$supplier 
+	+ offset(log(regdataV_1856_TableV$pop)), family=poisson)
+pois1_TableVrobustse <- coeftest(pois1_TableV, vcov = vcovHC(pois1_TableV))
+#summary(pois1_TableV)
+
+# Poisson with yes density
+pois1_TableVpop <- glm(regdataV_1856_TableV$deaths_adj ~ regdataV_1856_TableV$supplier + regdataV_1856_TableV$density_Snow
+	+ offset(log(regdataV_1856_TableV$pop)), family=poisson)
+pois1_TableVpoprobustse <- coeftest(pois1_TableVpop, vcov = vcovHC(pois1_TableVpop))
+#summary(pois1_TableVpop)
+
+# Poisson with FE
+pois1_TableVFE <- glm(regdataV_1856_TableV$deaths_adj ~ regdataV_1856_TableV$supplier + regdataV_1856_TableV$district
+	+ offset(log(regdataV_1856_TableV$pop)), family=poisson)
+pois1_TableVFErobustse <- coeftest(pois1_TableVFE, vcov = vcovHC(pois1_TableVFE))
+#summary(pois1_TableVFE)
+
+
+```
+
+
+####Negative Binomial Regressions
+
+The following code chunk runs Negative Binomial regression (but does not print out results): basic and with population density.
+
+
+```{r}
+# Negative Binomial with no density
+nb1_TableV <- glm.nb(regdataV_1856_TableV$deaths_adj ~ regdataV_1856_TableV$supplier 
+	+ offset(log(regdataV_1856_TableV$pop)))
+nb1_TableVrobustse <- coeftest(nb1_TableV, vcov = vcovHC(nb1_TableV))
+#summary(nb1_TableV)
+
+# Negative Binomial with yes density
+nb1pop_TableV <- glm.nb(regdataV_1856_TableV$deaths_adj ~ regdataV_1856_TableV$supplier + regdataV_1856_TableV$density_Snow
+	+ offset(log(regdataV_1856_TableV$pop)))
+nb1pop_TableVrobustse <- coeftest(nb1pop_TableV, vcov = vcovHC(nb1pop_TableV))
+#summary(nb1pop_TableV)
+
+
+```
+
+
+####Table with Summary
+
+The folowing code chunk populates a table with summary statistics for various regressions:
+
++ Poisson: basic, with population (housing) density, District Fixed Effects
++ Negative Binomial: basic, with population (housing) density
+
+```{r}
+# Create table with regression results for 1854 by Registration District (Southwark & Lambeth only) 
+regtable1856TableV <- matrix(0,nrow=16,ncol=5)
+colnames(regtable1856TableV) <- c("Poiss","Poiss pop","PoissFE","NB","NB pop")
+rownames(regtable1856TableV) <- c("Lambeth effect","SE","z value","p-value",
+	"robust SE","z value","ratio effect",
+	"theta","resid dev","p-value","pop den","SE","z value","Southwark pred mort",
+	"Lambeth pred mort","Other pred mort")
+# Populate the table from the regressions
+# Poiss no population density
+regtable1856TableV[c(1,2,3,4),1] <- summary(pois1_TableV)$coefficients[2,c(1,2,3,4)]
+regtable1856TableV[c(5,6),1] <- pois1_TableVrobustse[2,c(2,3)]
+regtable1856TableV[7,1] <- exp(-regtable1856TableV[1,1])
+#regtable1856TableV[c(8,9,10,11),1] <- summary(pois1_TableV)$coefficients[4,c(1,2,3,4)]
+regtable1856TableV[9,1] <- summary(pois1_TableV)$deviance
+regtable1856TableV[10,1] <- 1 - pchisq(pois1_TableV$deviance,pois1_TableV$df.residual)
+regtable1856TableV[14,1] <- 10000 * sum(pois1_TableV$fitted.values[1:9]) / sum(regdataV_1856_TableV$pop[1:9])
+regtable1856TableV[15,1] <- 10000 * sum(pois1_TableV$fitted.values[10:16]) / sum(regdataV_1856_TableV$pop[10:16])
+regtable1856TableV[16,1] <- 10000 * sum(pois1_TableV$fitted.values[17:23]) / sum(regdataV_1856_TableV$pop[17:23])
+# Poiss yes population density
+regtable1856TableV[c(1,2,3,4),2] <- summary(pois1_TableVpop)$coefficients[2,c(1,2,3,4)]
+regtable1856TableV[c(5,6),2] <- pois1_TableVpoprobustse[2,c(2,3)]
+regtable1856TableV[7,2] <- exp(-regtable1856TableV[1,2])
+regtable1856TableV[c(11,12,13),2] <- summary(pois1_TableVpop)$coefficients[4,c(1,2,3)]
+regtable1856TableV[9,2] <- summary(pois1_TableVpop)$deviance
+regtable1856TableV[10,2] <- 1 - pchisq(pois1_TableVpop$deviance,pois1_TableVpop$df.residual)
+regtable1856TableV[14,2] <- 10000 * sum(pois1_TableVpop$fitted.values[1:9]) / sum(regdataV_1856_TableV$pop[1:9])
+regtable1856TableV[15,2] <- 10000 * sum(pois1_TableVpop$fitted.values[10:16]) / sum(regdataV_1856_TableV$pop[10:16])
+regtable1856TableV[16,2] <- 10000 * sum(pois1_TableVpop$fitted.values[17:23]) / sum(regdataV_1856_TableV$pop[17:23])
+# Poiss FE
+regtable1856TableV[c(1,2,3,4),3] <- summary(pois1_TableVFE)$coefficients[2,c(1,2,3,4)]
+regtable1856TableV[c(5,6),3] <- pois1_TableVFErobustse[2,c(2,3)]
+regtable1856TableV[7,3] <- exp(-regtable1856TableV[1,3])
+regtable1856TableV[9,3] <- summary(pois1_TableVFE)$deviance
+regtable1856TableV[10,3] <- 1 - pchisq(pois1_TableVFE$deviance,pois1_TableVFE$df.residual)
+regtable1856TableV[14,3] <- 10000 * sum(pois1_TableVFE$fitted.values[1:9]) / sum(regdataV_1856_TableV$pop[1:9])
+regtable1856TableV[15,3] <- 10000 * sum(pois1_TableVFE$fitted.values[10:16]) / sum(regdataV_1856_TableV$pop[10:16])
+regtable1856TableV[16,3] <- 10000 * sum(pois1_TableVFE$fitted.values[17:23]) / sum(regdataV_1856_TableV$pop[17:23])
+# Neg Binom no population density
+regtable1856TableV[c(1,2,3,4),4] <- summary(nb1_TableV)$coefficients[2,c(1,2,3,4)]
+regtable1856TableV[c(5,6),4] <- nb1_TableVrobustse[2,c(2,3)]
+regtable1856TableV[7,4] <- exp(-regtable1856TableV[1,4])
+regtable1856TableV[8,4] <- summary(nb1_TableV)$theta
+regtable1856TableV[9,4] <- summary(nb1_TableV)$deviance
+regtable1856TableV[10,4] <- 1 - pchisq(nb1_TableV$deviance,nb1_TableV$df.residual)
+regtable1856TableV[14,4] <- 10000 * sum(nb1_TableV$fitted.values[1:9]) / sum(regdataV_1856_TableV$pop[1:9])
+regtable1856TableV[15,4] <- 10000 * sum(nb1_TableV$fitted.values[10:16]) / sum(regdataV_1856_TableV$pop[10:16])
+regtable1856TableV[16,4] <- 10000 * sum(nb1_TableV$fitted.values[17:23]) / sum(regdataV_1856_TableV$pop[17:23])
+# Neg Binom yes population density
+regtable1856TableV[c(1,2,3,4),5] <- summary(nb1pop_TableV)$coefficients[2,c(1,2,3,4)]
+regtable1856TableV[c(5,6),5] <- nb1pop_TableVrobustse[2,c(2,3)]
+regtable1856TableV[7,5] <- exp(-regtable1856TableV[1,5])
+regtable1856TableV[8,5] <- summary(nb1pop_TableV)$theta
+regtable1856TableV[c(11,12,13),5] <- summary(nb1pop_TableV)$coefficients[4,c(1,2,3)]
+regtable1856TableV[9,5] <- summary(nb1pop_TableV)$deviance
+regtable1856TableV[10,5] <- 1 - pchisq(nb1pop_TableV$deviance,nb1pop_TableV$df.residual)
+regtable1856TableV[14,5] <- 10000 * sum(nb1pop_TableV$fitted.values[1:9]) / sum(regdataV_1856_TableV$pop[1:9])
+regtable1856TableV[15,5] <- 10000 * sum(nb1pop_TableV$fitted.values[10:16]) / sum(regdataV_1856_TableV$pop[10:16])
+regtable1856TableV[16,5] <- 10000 * sum(nb1pop_TableV$fitted.values[17:23]) / sum(regdataV_1856_TableV$pop[17:23])
+
+kable(regtable1856TableV[c(1,3,9,10,14,15,16),c(3,5)],digits=3, caption = "Summary - Quasi-Randomized Regressions, 1856 Table V (by District, full 1854 epidemic)",format='pandoc')
+
+
+```
+
+####Conclusion
+
+I am not printing out all the regressions (you can check the summary statistics in the table), but the results are broadly the same as for the first seven weeks:
+
++ Simple Poisson has a high Residual Deviance, implying that Poisson does not fit the data well - and that the estimated standard errors are too small.
++ Including population (housing) density shows density has a negligible effect
++ Including sub-district fixed effects does not reduce the Residual Deviance enough to fit the data. 
++ Negative Binomial fits the data slightly better (in terms of Residual Deviance - it is marginally small enough). 
++ In all cases the "Lambeth Effect" is large - (roughly `r round(nb1pop_TableV$coefficients[2],1)` for a ratio effect of `r round(exp(-nb1pop_TableV$coefficients[2]),1)`) 
++ The "Lambeth Effect" is statistically significant (has a very large z-value). We cannot rely on the z-value for the basic Poisson regression (becuase the model does not fit well - the Residual Deviance is large), and we want to be cautious with all these models. Even using robust standard errors, however, we find z-values of 5 or larger. 
+
+
+###Overall Conclusion
+
+Snow recognized the value of his "Grand Experiment" - the near-randomization of customers in South London. In his 1855 "On the mode ..." he did not have the population data to test carefully, and with the population data in his 1856 "Cholera and the water supplly ..." he did not have the statistical framework or the tools for formal hypothesis testing. 
+
+We, however, do have the necessary framework and tools. Whether using the first seven weeks by sub-district from 1855 Table VIII or the full 1854 outbreak by District from 1856 Table V, the results are unambiguous: customers supplied with clean water by the Lambeth Co. had dramatically lower mortality than customers supplied by the Southwark & Vauxhall Co. (or supplied by "Other"). Snow recognized that the mixing of customers was a strong argument that ruled out virtually all other confounding factors - income, sex, age, social status, weather - since customers that were randomly mixed and in close proximity would either be mixed across these variables or would share the same influence (weather, for example). With our statitical tools we can more formally confirm what Snow saw in the data - clean water was more important than any of the other factors he (or we) could think of. 
+
