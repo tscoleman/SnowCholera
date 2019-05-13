@@ -33,7 +33,7 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute
 
 Try executing the chunk below by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
 
-``````{r}
+``````{r message=FALSE, results='hide'}
 # Copyright (c) 2019, Thomas Coleman
 #
 #  -------  Licensed under BSD 2-Clause "Simplified" License  -------
@@ -136,7 +136,7 @@ We need a more formal method for comparing the actual versus predicted. As a fir
 
 For example for Putney the overall population is 5,280 while the estimated combined Southwark plus Lambeth population is only 74: many houses were supplied by pump-wells or the Thames. For Kennington 1st the total population is 24,261 while the combined Southwark and Lambeth population is only 18,483. The total observed count (total population 24,261) is 305, giving an estimated mortality rate of 125.7 per 10,000. If we apply the rate of 125.7 to the Southwark and Lambeth population (18,483) we would have an expected count of only 232.2. Comparing 305 versus 232.2 is a difference of 72.7 but this reflects only differing population size and not underlying mortality or infection; the rates are identical.
 
-If we nonetheless go ahead and perform a paired *t*-test on the differences in rates, we find that the differences are not significant. 
+If we go ahead and perform a paired *t*-test on the differences in rates (even thought, as we will see, it is not appropriate), we find that the differences are not significant. 
 
 ```{r}
 trates <- t.test(tableVI_1856$mortality_1854_calc[1:31],tableVI_1856$mortality_projected_calc[1:31],paired=TRUE)
@@ -149,7 +149,7 @@ The *t*-ratio for the paired differences is `r round(trates$statistic,2)`, which
 
 ####Graphs of Error Structure
 
-Graphs make the point more clearly. The following shows the difference in mortality (actual less predicted) with approximate 95% confidence bands *assuming that the differences are normal and drawn from a common distribution*. The paired *t*-test assumes that the observations are all normal, so the differences are normal, and all with a common variance. 
+Graphs help to clarify why the paired *t*-test is not appropriate. The following shows the difference in mortality (actual less predicted) with approximate 95% confidence bands *assuming that the differences are normal and drawn from a common distribution*. The paired *t*-test assumes that the observations are all normal, so the differences are normal, and all with a common variance or standard deviation (sample estimate `r round(sd(tableVI_1856$mortality_1854_calc[1:31] - tableVI_1856$mortality_projected_calc[1:31]),2)`). 
 
 
 
@@ -190,7 +190,7 @@ xstderr_poiss <- 10000 * sqrt(x1 + x2)     # Std Err of difference in mortality 
 
 
 #pdf(paste("../paper/figures/errbar_diff1856_t","a.pdf",sep=""))
-	title <- "Actual minus Snow Predicted, as if paired t-test"
+	title <- "Actual minus Snow Predicted, as if Normal, constant variance"
   spread <- c(-1.96*xstderr_poiss,1.96*xstderr_poiss)
 	plotdiff_stderr(yseq,xdiff,xstderr_ttest,title,spread)   # Plot for all sub-districts
 #dev.off()
@@ -200,12 +200,12 @@ xstderr_poiss <- 10000 * sqrt(x1 + x2)     # Std Err of difference in mortality 
 ```
 
 Sub-districts are displayed in the order from Snow's 1855 publication - shown in the variable "seq_1855" in the Table VI .csv. 
-Error bars are drawn at $\pm$ 1.96 \* Standard Deviation of differences; this is  = $\pm$ 
-`r round(1.96*sd(tableVI_1856$mortality_1854_calc[1:31] - tableVI_1856$mortality_projected_calc[1:31]),2)`. These give the intuition for the *t*-test, showing that most of the observed differences are within the 95% error bars and thus relatively small relative to the observed variability across sub-districts. 
+Error bars are drawn at $\pm$ 1.96 \* *Standard Deviation of differences*; this is  = $\pm$ 
+`r round(1.96*sd(tableVI_1856$mortality_1854_calc[1:31] - tableVI_1856$mortality_projected_calc[1:31]),2)`. These gives the intuition for the *t*-test, showing that most of the observed differences are within the 95% error bars and thus small relative to the observed variability across sub-districts. 
 
 But the assumption for this graph, that all sub-district pairs have the same variance, is not correct. These are mortality *rates*, derived from *counts* based on finite populations. There will be variability simply because of the finite sub-district populations. Some are small - as mentioned above Putney has only 74 people supplied by the two water companies. Putney should have a much larger standard error than, say, Kennington 1st with a combined population of 18,483. 
 
-We can calculate approximate standard errors for each sub-district pair. Let us make the very reasonable assumption that the counts for each sub-district are Bernoulli random variables, the sum of which is Binomial and will go towards normal for large populations. The rates (average of the counts) will go to normal (by the Central Limit Theorem) with standard error $\sqrt{\frac{r*(1-r)}{n}}$ which for Poisson (which approximates the Bernoulli / Binomial) is $\sqrt{\frac{\lambda}{n}}$. The difference between two rates with different populations (actual and predicted here) will have approximate standard error $\sqrt{\frac{\lambda1}{n1} - \frac{\lambda2}{n2}}$.
+We can calculate approximate standard errors for each sub-district pair. Let us make the very reasonable assumption that the counts for each sub-district are Bernoulli random variables, the sum of which is Binomial and will go towards normal for large populations. The rates (average of the counts) will go to normal (by the Central Limit Theorem) with standard error $\sqrt{\frac{r*(1-r)}{n}}$ while for Poisson (which approximates the Bernoulli / Binomial) it is $\sqrt{\frac{\lambda}{n}}$. The difference between two rates with different populations (actual and predicted here) will have approximate standard error $\sqrt{\frac{\lambda1}{n1} - \frac{\lambda2}{n2}}$.
 
 
 ```{r}
@@ -262,7 +262,7 @@ This is not a formal estimation or testing framework (we turn to that in the nex
 
 I now turn from Table VI (data by sub-district but at the combined Southwark-plus-Lambeth level) to Table V (data by District but dis-aggregated by supplier: Southwark & Vauxhall, Lambeth, and "Other"). 
 
-For the quasi-randomized comparisons in a later notebook we need deaths assigned to water source or supplier. There are three: Southwark & Vauxhall Company; Lambeth Company; and "Other" (pump-wells, the Thames, ditches). The tables that supply data by supplier are as follows:
+For the quasi-randomized comparisons in a later notebook we need deaths assigned to water source or supplier. There are three sources: Southwark & Vauxhall Company; Lambeth Company; and "Other" (pump-wells, the Thames, ditches). The tables that provide data by supplier are as follows:
 
 + Snow 1855 Table VII and VIII, Snow 1856 Tables I, II: by sub-district (32 sub-districts) for part of the epidemic: the four weeks ending 5th August and seven seeks ending 26th August. Collected by Snow and Whiting
 + Snow 1856 Table V: by Registration District (11 Districts) for the full 1854 epidemic (ending October) and matching the dates for Snow 1855 Table XII
@@ -347,6 +347,6 @@ tableV_Koch[c("district","pop1851","deaths_southwark","deaths_lambeth","deaths_p
 
 ```
 
-Comparing the actual mortality to Koch & Denike's altered mortality rates we can see that they are the same at the aggregate South London level (all Districts combined) but they differ substantially for a number of Districts. For example the mortality rate for St. Saviour, Southwark is increased from 137.4 to 156.8 (per 10,000), while Lambeth is reduced from 66.5 to 56.5. All of these changes in overall mortality at the Registration District level are arbitrary and counter to the observed data.
+Comparing the actual mortality to Koch & Denike's altered mortality rates we can see that they are the same at the aggregate South London level (all Districts combined) but they differ substantially for a number of Districts. For example the mortality rate for St. Saviour, Southwark is increased to 156.8 from 137.4 (per 10,000), while Lambeth is reduced to 56.5 from. All of these changes in overall mortality at the Registration District level are arbitrary and counter to the observed data.
 
 
