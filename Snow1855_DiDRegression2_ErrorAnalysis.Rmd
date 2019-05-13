@@ -37,7 +37,7 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute
 
 Try executing the chunk below by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
 
-``````{r}
+``````{r message=FALSE, results='hide'}
 # Copyright (c) 2019, Thomas Coleman
 #
 #  -------  Licensed under BSD 2-Clause "Simplified" License  -------
@@ -66,7 +66,7 @@ tablexii <- read.csv(file="Snow1855_TableXII.csv", header=TRUE, sep=",", skip=5,
 
 ###"Worker" Functions for Plotting
 
-The main object of this notebook is to plot mortality rates for sub-districts, say comparing 1849 versus 1854, with (approximate) error bars overlaid. The graphs are basically all the same with just different input data. So I have put together some simple functions that produce a standard format graph.
+The main object of this notebook is to plot mortality rates for sub-districts, say comparing 1849 versus 1854, with (approximate) error bars overlaid. The graphs are basically all the same with just different input data. So I have put together some simple functions that produce a standard format graph. These are in the file "SnowPlotFns.r" and then 'source'd into this notebook. 
 
 **preperrdata** Before graphing, however, we need to prepare the data
 
@@ -92,206 +92,7 @@ This function changes global data (the x1849 & x1854 dataframes) using the "<<-"
 
 
 ```{r}
-preperrdata <- function(fittedmodel,single = "single") {       # This is not a good way to do this because I am 
-	                                                  # changing globals from within the function (using <<- 
-	                                                  # instead of <-)
-# Function to prepare the data (error bars) for graphing
-# The 2.5% and 97.5% confidence bands are calculated assuming either Poisson or Negative Binomial
-# The rates are calculated by generating the counts up and down from the "expected" (from the fitted model)
-
-	expected <- exp(predict(fittedmodel))       # expected values
-	theta <- fittedmodel$theta
-	x1849$predcount <<- expected[1:28]
-	x1854$predcount <<- expected[29:56]
-	x1849$predrate <<- 10000 * expected[1:28] / x1849$pop1851
-	x1854$predrate <<- 10000 * expected[29:56] / x1854$pop1851
-	xfamily <- family(fittedmodel)$family
-	if (xfamily == "poisson") {         # Get 95% confidence bands depending on model used (Poiss vs Neg Binom)
-		x1849$limdn <<- 10000 * qpois(.025,lambda=x1849$predcount) / x1849$pop1851
-		x1849$limup <<- 10000 * qpois(.975,lambda=x1849$predcount) / x1849$pop1851
-	} else {
-		x1849$limdn <<- 10000 * qnbinom(.025,size=theta,mu=x1849$predcount) / x1849$pop1851
-		x1849$limup <<- 10000 * qnbinom(.975,size=theta,mu=x1849$predcount) / x1849$pop1851
-		x1854$limdn <<- 10000 * qnbinom(.025,size=theta,mu=x1854$predcount) / x1849$pop1851
-		x1854$limup <<- 10000 * qnbinom(.975,size=theta,mu=x1854$predcount) / x1849$pop1851
-		x1849$limdnact <<- 10000 * qnbinom(.025,size=theta,mu=x1849$deaths) / x1849$pop1851
-		x1849$limupact <<- 10000 * qnbinom(.975,size=theta,mu=x1849$deaths) / x1849$pop1851
-	}
-
-	if (single == "single")  {   # model with single treatment effect
-		xdegless <- (coef(fittedmodel)["regdata$supplierSouthwarkVauxhall_Lambeth:regdata$year1854"])
-		xdegmore <- xdegless               # Make both treatment effects the same
-	} else {      # model with two treatment effects          		
-		xdegless <- (coef(fittedmodel)["regdata$lambethdegreeless_Lambeth:regdata$year1854"])
-		xdegmore <- (coef(fittedmodel)["regdata$lambethdegreemore_Lambeth:regdata$year1854"])		
-	}
-
-	# Now adjust up the 1854 predicted counts (and rates) for the time and treatment fixed effects
-	xyr1854 <- (coef(fittedmodel)["regdata$year1854"])
-	x3 <- exp(-xyr1854)
-	# Adjust for the year effect only - this should make 1849 & 1854 comparable net of time effect
-	x1854$rateadjyr <<- 10000 * (x1854$deaths*x3) / x1854$pop1851
-	# Adjust the 1854 actual for the estimated Treatment Effect and the estimate Year Effect
-	x3 <- x3 * exp(-(x1854$lambethdegree == "less_Lambeth")*xdegless) 
-	x3 <- x3 * exp(-(x1854$lambethdegree == "more_Lambeth")*xdegmore)
-	# Adjust for year & treatment effect - so that we can compare the actuals against each other 
-	x1854$rateadj <<- 10000 * (x1854$deaths*x3) / x1854$pop1851
-
-	return(xfamily)
-}
-
-
-# "Worker" function to plot mean, predicted, and error bars
-plot2_worker <- function(yseq, xmean,xlimdn,xpred,xlimup,title) {            
-	xplot <- plot(xmean, yseq,
-	    xlim=range(c(xmean, xpred,xlimdn,xlimup)),
-	    ylim=rev(range(yseq)), col="red",
-	    main=title,xlab="Mortality rate actual (red filled) vs predicted (empty circle)",ylab="sub-district",
-	    pch=19)
-	lines(xpred, yseq, type="p",
-	    xlim=range(c(xmean, xpred,xlimdn,xlimup)),
-	    ylim=rev(range(yseq)), 
-	    pch=1)
-	# horizontal error bars
-	xplot <- arrows(xlimdn, yseq, xlimup, yseq, length=0.05, angle=90, code=3,lty=3)
-	xplot
-}
-# "Cover" function that takes in the dataframe and unpacks
-plot2 <- function(confidata,xsupplier,title) {            
-	xmean <- subset(confidata,supplier==xsupplier)[,"rate"]
-	xlimdn <- subset(confidata,supplier==xsupplier)[,"limdn"]
-	xlimup <- subset(confidata,supplier==xsupplier)[,"limup"]
-	xpred <- subset(confidata,supplier==xsupplier)[,"predrate"]
-	yseq <- subset(confidata,supplier==xsupplier)[,"seq"]
-#	xtitle <- paste(xsupplier,title)
-	xplot <- plot2_worker(yseq,xmean,xlimdn,xpred,xlimup,title)
-}
-
-plot3 <- function(confidata1849,confidata1854,xsupplier,title) {            
-	xmean <- subset(confidata1849,supplier==xsupplier)[,"rate"]
-	xlimdn <- subset(confidata1849,supplier==xsupplier)[,"limdn"]
-	xlimup <- subset(confidata1849,supplier==xsupplier)[,"limup"]
-	xpred <- subset(confidata1849,supplier==xsupplier)[,"predrate"]
-	y <- subset(confidata1849,supplier==xsupplier)[,"seq"]
-	x1854adj <- subset(confidata1854,supplier==xsupplier)[,"rateadj"]
-	xplot <- plot(xmean, y,
-	    xlim=range(c(xmean, xpred,xlimdn,xlimup,x1854adj)),
-	    ylim=rev(range(y)), col="red", 
-	    main=title,xlab="Mortality: 1849 red circle, 1854 blue diamond vs predicted (circle)",ylab="sub-district",
-	    pch=19)
-	lines(xpred, y, type="p",
-	    xlim=range(c(xmean, xpred,xlimdn,xlimup)),
-	    ylim=rev(range(y)), 
-	    pch=1)
-	lines(x1854adj, y, type="p",
-	    xlim=range(c(xmean, xpred,xlimdn,xlimup)),
-	    ylim=rev(range(y)), col="blue", 
-	    pch=17)
-
-	# horizontal error bars
-	xplot <- arrows(xlimdn, y, xlimup, y, length=0.05, angle=90, code=3,lty=3)
-}
-
-# Plotting joint region for 1849 & 1854 with error bars for each
-plotcomp <- function(confidata1849,confidata1854,xsupplier,title) {            
-	xmean <- subset(confidata1849,supplier==xsupplier)[,"rate"]
-	xlimdn <- subset(confidata1849,supplier==xsupplier)[,"limdnact"]
-	xlimup <- subset(confidata1849,supplier==xsupplier)[,"limupact"]
-	xpred <- subset(confidata1849,supplier==xsupplier)[,"predrate"]
-	y <- subset(confidata1849,supplier==xsupplier)[,"seq"]
-	xmean1854 <- subset(confidata1854,supplier==xsupplier)[,"rateadjyr"]
-#	xlimdn1854 <- subset(confidata1854,supplier==xsupplier)[,"limdn"]
-#	xlimup1854 <- subset(confidata1854,supplier==xsupplier)[,"limup"]
-	xplot <- plot(xmean, y,
-	    xlim=range(c(xmean, xmean1854,xlimdn,xlimup)),
-	    ylim=rev(range(y)), col="red",
-	    main=title,xlab="Mortality: 1849 red circle, 1854 blue diamond",ylab="sub-district",
-	    pch=19)
-	lines(xmean1854, y, type="p",
-	    xlim=range(c(xmean, xmean1854,xlimdn,xlimup)),
-	    ylim=rev(range(y)), col="blue",
-	    pch=17)
-
-	# horizontal error bars
-	xplot <- arrows(xlimdn, y, xlimup, y, length=0.05, angle=90, code=3,,lty=3)
-#	xplot <- arrows(xlimdn1854, y, xlimup1854, y, length=0.05, angle=90, code=3)
-}
-
-preperrdata <- function(fittedmodel,single = "single") {       # This is not a good way to do this because I am 
-	                                                  # changing globals from within the function (using <<- 
-	                                                  # instead of <-)
-# Function to prepare the data (error bars) for graphing
-# The 2.5% and 97.5% confidence bands are calculated assuming either Poisson or Negative Binomial
-# The rates are calculated by generating the counts up and down from the "expected" (from the fitted model)
-
-	expected <- exp(predict(fittedmodel))       # expected values
-	theta <- fittedmodel$theta
-	x1849$predcount <<- expected[1:28]
-	x1854$predcount <<- expected[29:56]
-	x1849$predrate <<- 10000 * expected[1:28] / x1849$pop1851
-	x1854$predrate <<- 10000 * expected[29:56] / x1854$pop1851
-	xfamily <- family(fittedmodel)$family
-	if (xfamily == "poisson") {         # Get 95% confidence bands depending on model used (Poiss vs Neg Binom)
-		x1849$limdn <<- 10000 * qpois(.025,lambda=x1849$predcount) / x1849$pop1851
-		x1849$limup <<- 10000 * qpois(.975,lambda=x1849$predcount) / x1849$pop1851
-	} else {
-		x1849$limdn <<- 10000 * qnbinom(.025,size=theta,mu=x1849$predcount) / x1849$pop1851
-		x1849$limup <<- 10000 * qnbinom(.975,size=theta,mu=x1849$predcount) / x1849$pop1851
-		x1854$limdn <<- 10000 * qnbinom(.025,size=theta,mu=x1854$predcount) / x1849$pop1851
-		x1854$limup <<- 10000 * qnbinom(.975,size=theta,mu=x1854$predcount) / x1849$pop1851
-		x1849$limdnact <<- 10000 * qnbinom(.025,size=theta,mu=x1849$deaths) / x1849$pop1851
-		x1849$limupact <<- 10000 * qnbinom(.975,size=theta,mu=x1849$deaths) / x1849$pop1851
-	}
-
-	if (single == "single")  {   # model with single treatment effect
-		xdegless <- (coef(fittedmodel)["regdata$supplierSouthwarkVauxhall_Lambeth:regdata$year1854"])
-		xdegmore <- xdegless               # Make both treatment effects the same
-	} else {      # model with two treatment effects          		
-		xdegless <- (coef(fittedmodel)["regdata$lambethdegreeless_Lambeth:regdata$year1854"])
-		xdegmore <- (coef(fittedmodel)["regdata$lambethdegreemore_Lambeth:regdata$year1854"])		
-	}
-
-	# Now adjust up the 1854 predicted counts (and rates) for the time and treatment fixed effects
-	xyr1854 <- (coef(fittedmodel)["regdata$year1854"])
-	x3 <- exp(-xyr1854)
-	# Adjust for the year effect only - this should make 1849 & 1854 comparable net of time effect
-	x1854$rateadjyr <<- 10000 * (x1854$deaths*x3) / x1854$pop1851
-	# Adjust the 1854 actual for the estimated Treatment Effect and the estimate Year Effect
-	x3 <- x3 * exp(-(x1854$lambethdegree == "less_Lambeth")*xdegless) 
-	x3 <- x3 * exp(-(x1854$lambethdegree == "more_Lambeth")*xdegmore)
-	# Adjust for year & treatment effect - so that we can compare the actuals against each other 
-	x1854$rateadj <<- 10000 * (x1854$deaths*x3) / x1854$pop1851
-
-	return(xfamily)
-}
-
-ploterrbars <- function(fittedmodel,plotname,single = "single") {       # This is not a good way to do this because I am 
-	                                                  # changing globals from within the function (using <<- 
-	                                                  # instead of <-)
-	xfamily <- preperrdata(fittedmodel,single)  # this function modifies global data
-
-	pdf(paste("../paper/figures/errbar_",plotname,"a.pdf",sep=""))
-		plot2(x1849,"SouthwarkVauxhall",paste("First-12 Southwark-only ",xfamily," 1849 "))
-	dev.off()
-	pdf(paste("../paper/figures/errbar_",plotname,"b.pdf",sep=""))
-		plot2(x1849,"SouthwarkVauxhall_Lambeth",paste("Next-16 Jointly-Supplied ",xfamily," 1849 "))
-	dev.off()
-	pdf(paste("../paper/figures/errbar_",plotname,"c.pdf",sep=""))
-		plot3(x1849,x1854,"SouthwarkVauxhall",paste("First-12 Southwark-only ",xfamily," 1849vs1854 "))
-	dev.off()
-	pdf(paste("../paper/figures/errbar_",plotname,"d.pdf",sep=""))
-		plot3(x1849,x1854,"SouthwarkVauxhall_Lambeth",paste("Next-16 Jointly-Supplied ",xfamily," 1849vs1854 "))
-	dev.off()
-	if (xfamily != "poisson") {         # Plot comparison for joint region only for Negative Binomial
-		pdf(paste("../paper/figures/errbar_",plotname,"e.pdf",sep=""))
-			plotcomp(x1849,x1854,"SouthwarkVauxhall",paste("First-12 Southwark-only ",xfamily," 1849vs1854 "))
-		dev.off()
-		pdf(paste("../paper/figures/errbar_",plotname,"f.pdf",sep=""))
-			plotcomp(x1849,x1854,"SouthwarkVauxhall_Lambeth",paste("Next-16 Jointly-Supplied ",xfamily," 1849vs1854 "))
-		dev.off()
-	}
-
-}
+source('SnowPlotFns.r') 
 
 
 ```
@@ -338,8 +139,8 @@ $ln(Rate) = ln(Count) - ln(Population) = \mu + \delta 54*I(54) + \gamma*I(joint)
 
 ```{r}
 # Poisson with single "Lambeth effect" and same rate for all sub-districts (no sub-district fixed effects)
-pois1single <- glm(regdata$deaths ~ regdata$supplier * regdata$year 
-	+ offset(log(regdata$pop1851)), family=poisson)
+pois1single <- glm(deaths ~ supplier * year 
+	+ offset(log(pop1851)), family=poisson, data=regdata) 
 summary(pois1single)
 
 ```
@@ -374,8 +175,8 @@ So our first generalization is sub-district fixed effects. Our data has a "subDi
 
 ```{r}
 # Poisson with single "Lambeth effect" and different rates by sub-district (fixed effects)
-pois2single <- glm(regdata$deaths ~ regdata$subDistrict + regdata$supplier * regdata$year 
-	+ offset(log(regdata$pop1851)), family=poisson)
+pois2single <- glm(deaths ~ subDistrict + supplier * year 
+	+ offset(log(pop1851)), family=poisson, data=regdata) 
 summary(pois2single)
 ```
 
@@ -400,8 +201,8 @@ we will allow the error $\epsilon$ to have a more general distribution, Negative
 
 ```{r}
 # Negative Binomial with single "Lambeth effect" 
-nb1single <- glm.nb(regdata$deaths ~ regdata$supplier * regdata$year 
-	+ offset(log(regdata$pop1851)))
+nb1single <- glm.nb(deaths ~ supplier * year 
+	+ offset(log(pop1851)), data=regdata) 
 summary(nb1single)
 ```
 
