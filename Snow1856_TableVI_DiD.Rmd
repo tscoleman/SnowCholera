@@ -34,6 +34,13 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute
 Try executing the chunk below by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
 
 ``````{r message=FALSE, results='hide'}
+# Copyright (c) 2019, Thomas Coleman
+#
+#  -------  Licensed under BSD 2-Clause "Simplified" License  -------
+#
+# Results and discussion in "Causality in the Time of Cholera: John Snow as a Prototype 
+# for Causal Inference (Working Paper)" available at SSRN: https://papers.ssrn.com/abstract=3262234
+
 rm(list=ls())    # starts a fresh workspace
 #
 library(knitr)
@@ -44,6 +51,9 @@ options(scipen=5)
 library("MASS")
 library("sandwich") 
 library("lmtest") 
+
+# Read in plot functions - see the R code or the notebook 'Snow1855_DiDRegression2_ErrorAnalysis.rmd' for a description of those function
+source('SnowPlotFns.r') 
 
 # Read in the data from Snow 1855 "On the mode of communication of cholera"
 tableviii <- read.csv(file="Snow1855_TableVIII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
@@ -164,13 +174,13 @@ With the dataframe "regdata" we can now run various regressions. To start just t
 
 ```{r}
 # Linear with no population density
-linpopn <- lm(regdata$rate ~ regdata$lambethperc54 + regdata$lambethperc + regdata$otherperc + regdata$year )
-linpopnrobustse <- coeftest(linpopn, vcov = vcovHC(linpopn))
-summary(linpopn)
+linpropn <- lm(rate ~ lambethperc54 + lambethperc + otherperc + year, data=regdata )
+linpropnrobustse <- coeftest(linpropn, vcov = vcovHC(linpropn))
+summary(linpropn)
 
 ```
 
-The "Lambeth" or clean water effect is the coefficient "`r labels(linpopn$coefficients[2])`" = `r round(summary(linpopn)$coefficients[2,1],1)` - the mortality per 10,000 for Lambeth company customers, as a difference from Southwark & Vauxhall company customers. The z value of `r round(summary(linpopn)$coefficients[2,3],1)` indicates that this is statistically significant. The value itself is very large, telling us that in 1854 the mortality rate of Lambeth customers was `r round(summary(linpopn)$coefficients[2,1],0)` per 10,000 lower than for Southwark & Vauxhall customers - a *very* large difference given that the base Southwark & Vauxhall mortality was `r round(summary(linpopn)$coefficients[1,1],0)`.
+The "Lambeth" or clean water effect is the coefficient "`r labels(linpropn$coefficients[2])`" = `r round(summary(linpropn)$coefficients[2,1],1)` - the mortality per 10,000 for Lambeth company customers, as a difference from Southwark & Vauxhall company customers. The z value of `r round(summary(linpropn)$coefficients[2,3],1)` indicates that this is statistically significant. The value itself is very large, telling us that in 1854 the mortality rate of Lambeth customers was `r round(summary(linpropn)$coefficients[2,1],0)` per 10,000 lower than for Southwark & Vauxhall customers - a *very* large difference given that the base Southwark & Vauxhall mortality was `r round(summary(linpropn)$coefficients[1,1],0)`.
 
 The adjusted R-squared tests whether variations in the population proportions and differences in water supply account for much of the observed variation in mortality, exactly what Snow was trying to test. The high R-squared shows that indeed differences in mortality between water suppliers accounts for much of the observed variation. 
 
@@ -178,32 +188,95 @@ The population estimates published in 1856 also included housing density estimat
 
 ```{r}
 # Linear with population density
-linpopn_den <- lm(regdata$rate ~ regdata$lambethperc54 + regdata$lambethperc + regdata$otherperc + regdata$year
-	+ regdata$pop_per_house )
-linpopn_denrobustse <- coeftest(linpopn_den, vcov = vcovHC(linpopn_den))
-summary(linpopn_den)
+linpropn_den <- lm(rate ~ lambethperc54 + lambethperc + otherperc + year
+	+ pop_per_house , data=regdata)
+linpropn_denrobustse <- coeftest(linpropn_den, vcov = vcovHC(linpropn_den))
+summary(linpropn_den)
 
 ```
 
 
-Doing so has virtually effect on the Lambeth coefficient - it is still `r round(summary(linpopn_den)$coefficients[2,1],1)`. Housing density is marginally significant but adds little to the overall explanatory power of the regression - the Adjusted R-Squared increases from `r round(summary(linpopn)$adj.r.squared,3)` to `r round(summary(linpopn_den)$adj.r.squared,3)`.
+Doing so has virtually effect on the Lambeth coefficient - it is still `r round(summary(linpropn_den)$coefficients[2,1],1)`. Housing density is marginally significant but adds little to the overall explanatory power of the regression - the Adjusted R-Squared increases from `r round(summary(linpropn)$adj.r.squared,3)` to `r round(summary(linpropn_den)$adj.r.squared,3)`.
 
 We can also include fixed effects for each sub-district. Including housing density asks "does the difference in density across sub-districts help explain mortality, or reduce the importance of clean water for Lambeth customers?" Including fixed effects asks a dramatically more general question: "are there any differences across sub-districts that help explain mortality or reduce the importance of clean water?" The answer is basically "No". 
 
 ```{r}
 # Linear with fixed effects
-linpopn_FE <- lm(regdata$rate ~ regdata$lambethperc54 + regdata$lambethperc + regdata$otherperc + regdata$year
-	+ regdata$subDistrict )
-linpopn_FErobustse <- coeftest(linpopn_FE, vcov = vcovHC(linpopn_FE))
-summary(linpopn_FE)
+linpropn_FE <- lm(rate ~ lambethperc54 + lambethperc + otherperc + year
+	+ subDistrict, data=regdata )
+linpropn_FErobustse <- coeftest(linpropn_FE, vcov = vcovHC(linpropn_FE))
+summary(linpropn_FE)
 
 ```
 
-The Adjusted R-Squared increases from `r round(summary(linpopn)$adj.r.squared,3)` to `r round(summary(linpopn_FE)$adj.r.squared,3)`, but the value of the Lambeth effect is unchanged and in fact is now estimated even more precisely: t value `r round(summary(linpopn_FE)$coefficients[2,3],1)`. Yes there are differences in mortality across sub-districts that are not explained only by differences in water supplier, but water supply still has a dramatically large and precisely-estimated effect. 
+The Adjusted R-Squared increases from `r round(summary(linpropn)$adj.r.squared,3)` to `r round(summary(linpropn_FE)$adj.r.squared,3)`, but the value of the Lambeth effect is unchanged and in fact is now estimated even more precisely: t value `r round(summary(linpropn_FE)$coefficients[2,3],1)`. Yes there are differences in mortality across sub-districts that are not explained only by differences in water supplier, but water supply still has a dramatically large and precisely-estimated effect. 
 
-####Count (Poisson & Negative Binomial Regressions)
+####Count - Linear Regressions (Poisson & Negative Binomial Regressions)
 
-The OLS regression above is not really appropriate because observed variables are counts - positive and integer-valued rather than continuous. The residuals for the regression cannot be continuous normal variables. We need to turn to Poisson or Negative Binomial regression. Unfortunately the standard estimation routines are based on a logarithmic relation:
+The OLS regression above is not really appropriate because observed variables are counts - positive and integer-valued rather than the continuous rates used in the above regessions. For the observed counts the regression residuals cannot be continuous normal variables. We need to turn to Poisson or Negative Binomial regression. 
+
+The default for counts (Poisson and Negative Binomial regressions) is to estimate in log form, as discussed below. Here, howerver, we will use a linear relation between the rates and regressors:
+
+$R_{subdis,yr} = R_S + (R_L^{54}-R_S) * P_L * I_{yr=1854} + (R_L-R_S) * P_L + (R_O-R_S) * P_O + \delta_{54} * I_{yr=1854}$
+
+The rate is the count divided by the population:
+
+$R_{subdis,yr} = Count_{subdis,yr} / Pop_{subdis,yr}$
+
+To transform from the rate equation to counts we need to multiply all the regressors by the population:
+
+$Count_{subdis,yr} = R_S*Pop_{subdis,yr} + (R_L^{54}-R_S) * \tilde{P}_L * I_{yr=1854} + (R_L-R_S) * \tilde{P}_L + (R_O-R_S) * \tilde{P}_O + \delta_{54} * \tilde{I}_{yr=1854} + \epsilon$
+
+where I am using $\tilde{P_L} ...$ to mean $P_L * Pop_{subdis,yr}$. (This also means running the regression with no intercept and using $Pop_{subdis,yr}$ as a regressor.)
+
+The following code chunk runs a Poisson and Negative Binomial regression but displays only the Negative Binomial, since as usual the Poisson regression shows overdispersion (does not fit the data well) so that we cannot rely on the Poisson standard errors. 
+
+```{r}
+# For running linear count regressions, we need to weight all the regressors by the population (since we can't use the "offset()" method)
+regdata_lin <- regdata 
+regdata_lin$yearind <- 1.0*(regdata$year == "1854")
+regdata_lin$pop1851 <- regdata_lin$pop1851 / 10000
+regdata_lin[,c("yearind","otherperc","lambethperc","lambethperc54","pop_per_house")] <-
+	regdata_lin[,c("yearind","otherperc","lambethperc","lambethperc54","pop_per_house")] * regdata_lin$pop1851
+
+# Poisson regression with linear (identity) link function
+pois1propn_lin <- glm(deaths ~ pop1851 + lambethperc54 + lambethperc + otherperc + yearind
+	- 1 , family=poisson(link="identity"), data=regdata_lin)
+pois1propn_linrobustse <- coeftest(pois1propn_lin, vcov = vcovHC(pois1propn_lin))
+#summary(pois1propn_lin)
+#logLik(pois1propn_lin)
+
+# Negative Binomial with linear (identity) link function
+nb1propn_lin <- glm.nb(deaths ~ pop1851 + lambethperc54 + lambethperc + otherperc + yearind
+	 - 1, link = identity, data = regdata_lin)
+nb1propn_linrobustse <- coeftest(nb1propn_lin, vcov = vcovHC(nb1propn_lin))
+#summary(nb1propn_lin)
+#logLik(nb1propn_lin)
+
+# Negative Binomial with linear (identity) link function & population density
+nb1propn_linden <- glm.nb(deaths ~ pop1851 + lambethperc54 + lambethperc + otherperc + yearind
+	 + pop_per_house - 1, link = identity, data = regdata_lin)
+nb1propn_lindenrobustse <- coeftest(nb1propn_linden, vcov = vcovHC(nb1propn_linden))
+#summary(nb1propn_linden)
+#logLik(nb1propn_linden)
+
+# Finally, FEs
+nb2propn_lin <- glm.nb(deaths ~ pop1851 + lambethperc54 + lambethperc + otherperc + yearind
+	+ subDistrict - 1, link = identity, data=regdata_lin)
+nb2propn_linrobustse <- coeftest(nb2propn_lin, vcov = vcovHC(nb2propn_lin))
+#summary(nb2propn_lin)
+#logLik(nb2propn_lin)
+
+
+summary(nb1propn_linden)
+
+```
+
+This linear Negative Binomial regression gives results similar to the linear OLS regression above. 
+
+####Count - Log Regressions (Poisson & Negative Binomial Regressions)
+
+The linear count regressions incorporate the assumption that the random variables are counts, but linearity is not necessarily a good assumption. It imposes the assumption that the treatment effect reduces mortality rates by a fixed amount independent of the base mortality level. A proportional or ratio expression would be more reasonable. Unfortunately the standard estimation routines are based on a linear-in-logs form:
 
 $ln(R_{subdis,yr}) = R_S + (R_L^{54}-R_S) * P_L * I_{yr=1854} + (R_L-R_S) * P_L + (R_O-R_S) * P_O + \delta_{54} * I_{yr=1854} + \epsilon$
 
@@ -213,61 +286,52 @@ The following code chunk runs a variety of Poisson and Negative Binomial regress
 
 ```{r}
 # Poisson with no FE and no housing density
-pois1popn <- glm(regdata$deaths ~ regdata$lambethperc54 + regdata$lambethperc + regdata$otherperc + regdata$year
-	+ offset(log(regdata$pop1851)), family=poisson)
-pois1popnrobustse <- coeftest(pois1popn, vcov = vcovHC(pois1popn))
-#summary(pois1popn)
-#logLik(pois1popn)
-#coeftest(pois1popn, vcov = vcovHC(pois1popn))
+pois1propn <- glm(deaths ~ lambethperc54 + lambethperc + otherperc + year
+	+ offset(log(pop1851)), family=poisson, data=regdata)
+pois1propnrobustse <- coeftest(pois1propn, vcov = vcovHC(pois1propn))
+#summary(pois1propn)
+#logLik(pois1propn)
 
 # Poisson with housing density
-pois1popn_den <- glm(regdata$deaths ~ regdata$lambethperc54 + regdata$lambethperc + regdata$otherperc + regdata$year
-	+ regdata$pop_per_house	+ offset(log(regdata$pop1851)), family=poisson)
-pois1popn_denrobustse <- coeftest(pois1popn_den, vcov = vcovHC(pois1popn_den))
-#summary(pois1popn_den)
-#logLik(pois1popn_den)
-#coeftest(pois1popn_den, vcov = vcovHC(pois1popn_den))
+pois1propn_den <- glm(deaths ~ lambethperc54 + lambethperc + otherperc + year
+	+ pop_per_house	+ offset(log(pop1851)), family=poisson, data=regdata)
+pois1propn_denrobustse <- coeftest(pois1propn_den, vcov = vcovHC(pois1propn_den))
+#summary(pois1propn_den)
+#logLik(pois1propn_den)
 
 # Poisson with different rates by sub-district (fixed effects)
-pois2popn <- glm(regdata$deaths ~ regdata$lambethperc54 + regdata$lambethperc + regdata$otherperc + regdata$year
-	+ regdata$subDistrict + offset(log(regdata$pop1851)), family=poisson)
-pois2popnrobustse <- coeftest(pois2popn, vcov = vcovHC(pois2popn))
-#summary(pois2popn)
-#logLik(pois2popn)
-#coeftest(pois2popn, vcov = vcovHC(pois2popn))
-
-
+pois2propn <- glm(deaths ~ lambethperc54 + lambethperc + otherperc + year
+	+ subDistrict + offset(log(pop1851)), family=poisson, data=regdata)
+pois2propnrobustse <- coeftest(pois2propn, vcov = vcovHC(pois2propn))
+#summary(pois2propn)
+#logLik(pois2propn)
 
 # Negative Binomial with no FE and no housing density
-nb1popn <- glm.nb(regdata$deaths ~ regdata$lambethperc54 + regdata$lambethperc + regdata$otherperc + regdata$year
-	 + offset(log(regdata$pop1851)))
-nb1popnrobustse <- coeftest(nb1popn, vcov = vcovHC(nb1popn))
-#summary(nb1popn)
-#logLik(nb1popn)
-#coeftest(nb1popn, vcov = vcovHC(nb1popn))
-
+nb1propn <- glm.nb(deaths ~ lambethperc54 + lambethperc + otherperc + year
+	 + offset(log(pop1851)), data=regdata)
+nb1propnrobustse <- coeftest(nb1propn, vcov = vcovHC(nb1propn))
+#summary(nb1propn)
+#logLik(nb1propn)
 
 # Also run with housing density
-nb1popn_den <- glm.nb(regdata$deaths ~ regdata$lambethperc54 + regdata$lambethperc + regdata$otherperc + regdata$year
-	+ regdata$pop_per_house + offset(log(regdata$pop1851)))
-nb1popn_denrobustse <- coeftest(nb1popn_den, vcov = vcovHC(nb1popn_den))
-#summary(nb1popn_den)
-#logLik(nb1popn_den)
-#coeftest(nb1popn_den, vcov = vcovHC(nb1popn_den))
+nb1propn_den <- glm.nb(deaths ~ lambethperc54 + lambethperc + otherperc + year
+	+ pop_per_house + offset(log(pop1851)), data=regdata)
+nb1propn_denrobustse <- coeftest(nb1propn_den, vcov = vcovHC(nb1propn_den))
+#summary(nb1propn_den)
+#logLik(nb1propn_den)
 
 # Finally, FEs
-nb2popn <- glm.nb(regdata$deaths ~ regdata$lambethperc54 + regdata$lambethperc + regdata$otherperc + regdata$year
-	+ regdata$subDistrict + offset(log(regdata$pop1851)))
-nb2popnrobustse <- coeftest(nb2popn, vcov = vcovHC(nb2popn))
-#summary(nb2popn)
-#logLik(nb2popn)
-#coeftest(nb2popn, vcov = vcovHC(nb2popn))
+nb2propn <- glm.nb(deaths ~ lambethperc54 + lambethperc + otherperc + year
+	+ subDistrict + offset(log(pop1851)), data=regdata)
+nb2propnrobustse <- coeftest(nb2propn, vcov = vcovHC(nb2propn))
+#summary(nb2propn)
+#logLik(nb2propn)
 
-summary(nb1popn_den)
+summary(nb1propn_den)
 
 ```
 
-The result for the Negative Binomial with housing density is, again, that the effect of clean water (the Lambeth effect) is large and statistically significant (coefficient `r round(summary(nb1popn_den)$coefficients[2,1],3)`, ratio effect `r round(exp(-summary(nb1popn_den)$coefficients[2,1]),2)`, z ratio `r round(summary(nb1popn_den)$coefficients[2,3],2)`). The regression fits the data reasonably well when measured by the Residual Deviance. 
+The result for the Negative Binomial with housing density is, again, that the effect of clean water (the Lambeth effect) is large and statistically significant (coefficient `r round(summary(nb1propn_den)$coefficients[2,1],3)`, ratio effect `r round(exp(-summary(nb1propn_den)$coefficients[2,1]),2)`, z ratio `r round(summary(nb1propn_den)$coefficients[2,3],2)`). The regression fits the data reasonably well when measured by the Residual Deviance. 
 
 ####Populating Table with Summary Statistics
 
@@ -277,62 +341,139 @@ First, a code chunk for the linear regressions (but also including the Negative 
 
 
 ```{r}
+# First, create the dataframes for prediction. "predict" can take in a dataframe but for some reason it only
+# seems to work with a dataframe from a regression (at least I couldn't get it to work any other way). 
+# The idea is to take a "model.dataframe" from one of the regressions (just the first three rows) and
+# then manually insert the population proportions, years, etc. that we want to predict:
+#  - Southwark rate, 1854, average housing density (1st row, Lambeth and "Other" population proportions 0)
+#  - Lambeth rate, 1854, average housing density (2nd row Lambethperc=1 and lambethperc54=1)
+#  - "Other" rate, 1854, average housing density (3rd row, otherperc=1)
+# The idea is to take the dataframe from a fitted model, then over-write the indicators for "Lambeth", "Other"
+# We need population, and if we put in 10,000 then the counts will be per 10,000 people which is the way we 
+# want to quote rates. 
+regdata_pred <- model.frame(nb1propn_linden)[1:3,]
+regdata_pred$lambethperc <- c(0,1,0)  # Population proportion for Lambeth
+regdata_pred$lambethperc54 <- c(0,1,0)  # Population proportion for Lambeth 1954
+regdata_pred$otherperc <- c(0,0,1)   # Population proportion for "Other"
+regdata_pred$pop_per_house <- mean(regdata$pop_per_house)  # set population per house to the mean
+regdata_pred$year <- "1854"   # Year to 1854
+regdata_pred$`offset(log(pop1851))` <- log(10000)  # Force population to be 10,000
+regdata_pred$pop1851 <- 10000    # Force population to be 10,000
+# Slight difference for predicting with linear count models, where we need to enter the
+# "10,000" population as "1" (since we estimated parameters per 10,000)
+regdata_predlin <- regdata_pred
+regdata_predlin$pop1851 <- 1
+regdata_predlin$yearind <- 1
+# --------------------- #
 # Create table with regression results (diff-in-diffs estimate) using robust SEs
 # for all except the NB1 (Negative Binomial without sub-district fixed effects)
-regtabledid1856lin <- matrix(0,nrow=13,ncol=4)
-colnames(regtabledid1856lin) <- c("Lin","Lin popden","Lin FE","NB popden")
-rownames(regtabledid1856lin) <- c("Lambeth 1854 effect","SE","z value","p-value",
-	"lambeth perc","z value","other perc","z value",
-	"pop density","z value","Rsq / resid dev",	"Southwark 1854 rate","Lambeth 1854 rate")
+regtabledid1856lin <- matrix(0,nrow=16,ncol=8)
+colnames(regtabledid1856lin) <- c("Lin OLS","Lin Poisson","Lin Neg Binom","Lin NB H den","Lin NB FE",
+                                  "Log NB","Log NB H den","log NB FE")
+rownames(regtabledid1856lin) <- c("Lambeth 1854 effect","SE","z value",
+	"lambeth perc","z value","other perc","z value","1854","z value",
+	"pop density","z value","Adj Rsq / resid dev",	"Resid Dev p-value",
+	"Southwark 1854 rate","Lambeth 1854 rate","Other rate")
 # Populate the table from the regressions
+# First, define rows to put data into
+xteffect <- c(1,2,3)
+xresidev <- 12
+xresidevpv <- 13
+xlambeth <- c(4,5)
+xother <- c(6,7)
+xyear <- c(8,9)
+xhden <- c(10,11)
+xmortality <- c(14,15,16)
 # Linear no population density
-regtabledid1856lin[c(1,2,3,4),1] <- summary(linpopn)$coefficients[2,c(1,2,3,4)]
-regtabledid1856lin[11,1] <- summary(linpopn)$adj.r.squared
-regtabledid1856lin[c(5,6),1] <- summary(linpopn)$coefficients[3,c(1,3)]
-regtabledid1856lin[c(7,8),1] <- summary(linpopn)$coefficients[4,c(1,3)]
-regtabledid1856lin[c(12,13),1] <- c(sum(summary(linpopn)$coefficients[c(1,5)]),sum(summary(linpopn)$coefficients[c(1,2,3,5)]))
-# Linear Population density
-regtabledid1856lin[c(1,2,3,4),2] <- summary(linpopn_den)$coefficients[2,c(1,2,3,4)]
-regtabledid1856lin[11,2] <- summary(linpopn_den)$adj.r.squared
-regtabledid1856lin[c(5,6),2] <- summary(linpopn_den)$coefficients[3,c(1,3)]
-regtabledid1856lin[c(7,8),2] <- summary(linpopn_den)$coefficients[4,c(1,3)]
-regtabledid1856lin[c(9,10),2] <- summary(linpopn_den)$coefficients[6,c(1,3)]
-regtabledid1856lin[c(12,13),2] <- c(sum(summary(linpopn_den)$coefficients[c(1,5)]),sum(summary(linpopn_den)$coefficients[c(1,2,3,5)]))
-# Linear Fixed Effects
-regtabledid1856lin[c(1,2,3,4),3] <- summary(linpopn_FE)$coefficients[2,c(1,2,3,4)]
-regtabledid1856lin[11,3] <- summary(linpopn_FE)$adj.r.squared
-regtabledid1856lin[c(5,6),3] <- summary(linpopn_FE)$coefficients[3,c(1,3)]
-regtabledid1856lin[c(7,8),3] <- summary(linpopn_FE)$coefficients[4,c(1,3)]
-regtabledid1856lin[c(12,13),3] <- c(sum(summary(linpopn_FE)$coefficients[c(1,5)]),sum(summary(linpopn_FE)$coefficients[c(1,2,3,5)]))
-# Negative Binomial population density
-regtabledid1856lin[c(1,2,3,4),4] <- summary(nb1popn_den)$coefficients[2,c(1,2,3,4)]
-regtabledid1856lin[c(9,10),4] <- summary(nb1popn_den)$coefficients[6,c(1,3)]
-regtabledid1856lin[11,4] <- summary(nb1popn_den)$deviance
-regtabledid1856lin[c(5,6),4] <- summary(nb1popn_den)$coefficients[3,c(1,3)]
-regtabledid1856lin[c(7,8),4] <- summary(nb1popn_den)$coefficients[4,c(1,3)]
-#regtabledid1856lin[12,4] <- 10000 * sum(nb1popn_den$fitted.values[29:40]) / sum(regdata$pop1851[29:40])
-#regtabledid1856lin[13,4] <- 10000 * sum(nb1popn_den$fitted.values[41:56]) / sum(regdata$pop1851[41:56])
-regtabledid1856lin[c(12,13),4] <- 10000 * c(exp(sum(summary(nb1popn_den)$coefficients[c(1,5)])),
-	exp(sum(summary(nb1popn_den)$coefficients[c(1,2,3,5)])))
+xrow <- 1
+regtabledid1856lin[xteffect,xrow] <- summary(linpropn)$coefficients[2,c(1,2,3)]
+regtabledid1856lin[xresidev,xrow] <- summary(linpropn)$adj.r.squared
+regtabledid1856lin[xlambeth,xrow] <- summary(linpropn)$coefficients[3,c(1,3)]
+regtabledid1856lin[xother,xrow] <- summary(linpropn)$coefficients[4,c(1,3)]
+regtabledid1856lin[xyear,xrow] <- summary(linpropn)$coefficients[5,c(1,3)]
+regtabledid1856lin[xmortality,xrow] <- predict(linpropn,newdata=regdata_pred)
+# Poisson, linear form
+xrow <- 2
+regtabledid1856lin[xteffect,xrow] <- summary(pois1propn_lin)$coefficients[2,c(1,2,3)]
+regtabledid1856lin[xresidev,xrow] <- summary(pois1propn_lin)$deviance
+regtabledid1856lin[xlambeth,xrow] <- summary(pois1propn_lin)$coefficients[3,c(1,3)]
+regtabledid1856lin[xother,xrow] <- summary(pois1propn_lin)$coefficients[4,c(1,3)]
+regtabledid1856lin[xyear,xrow] <- summary(pois1propn_lin)$coefficients[5,c(1,3)]
+regtabledid1856lin[xresidevpv,xrow] <- (1-pchisq(summary(pois1propn_lin)$deviance,summary(pois1propn_lin)$df.residual))
+regtabledid1856lin[xmortality,xrow] <- predict(pois1propn_lin,newdata=regdata_predlin)
+# Negative Binomial, linear form
+xrow <- 3
+regtabledid1856lin[xteffect,xrow] <- summary(nb1propn_lin)$coefficients[2,c(1,2,3)]
+regtabledid1856lin[xresidev,xrow] <- summary(nb1propn_lin)$deviance
+regtabledid1856lin[xlambeth,xrow] <- summary(nb1propn_lin)$coefficients[3,c(1,3)]
+regtabledid1856lin[xother,xrow] <- summary(nb1propn_lin)$coefficients[4,c(1,3)]
+regtabledid1856lin[xyear,xrow] <- summary(nb1propn_lin)$coefficients[5,c(1,3)]
+regtabledid1856lin[xresidevpv,xrow] <- (1-pchisq(summary(nb1propn_lin)$deviance,summary(nb1propn_lin)$df.residual))
+regtabledid1856lin[xmortality,xrow] <- predict(nb1propn_lin,newdata=regdata_predlin)
+# Negative Binomial housing density, linear form
+xrow <- 4
+regtabledid1856lin[xteffect,xrow] <- summary(nb1propn_linden)$coefficients[2,c(1,2,3)]
+regtabledid1856lin[xresidev,xrow] <- summary(nb1propn_linden)$deviance
+regtabledid1856lin[xlambeth,xrow] <- summary(nb1propn_linden)$coefficients[3,c(1,3)]
+regtabledid1856lin[xother,xrow] <- summary(nb1propn_linden)$coefficients[4,c(1,3)]
+regtabledid1856lin[xyear,xrow] <- summary(nb1propn_linden)$coefficients[5,c(1,3)]
+regtabledid1856lin[xhden,xrow] <- summary(nb1propn_linden)$coefficients[6,c(1,3)]
+regtabledid1856lin[xresidevpv,xrow] <- (1-pchisq(summary(nb1propn_linden)$deviance,summary(nb1propn_linden)$df.residual))
+regtabledid1856lin[xmortality,xrow] <- predict(nb1propn_linden,newdata=regdata_predlin)
+# Negative Binomial FE, linear form
+xrow <- 5
+regtabledid1856lin[xteffect,xrow] <- summary(nb2propn_lin)$coefficients[2,c(1,2,3)]
+regtabledid1856lin[xresidev,xrow] <- summary(nb2propn_lin)$deviance
+regtabledid1856lin[xlambeth,xrow] <- summary(nb2propn_lin)$coefficients[3,c(1,3)]
+regtabledid1856lin[xother,xrow] <- summary(nb2propn_lin)$coefficients[4,c(1,3)]
+regtabledid1856lin[xyear,xrow] <- summary(nb2propn_lin)$coefficients[5,c(1,3)]
+regtabledid1856lin[xresidevpv,xrow] <- (1-pchisq(summary(nb2propn_lin)$deviance,summary(nb2propn_lin)$df.residual))
+# Negative Binomial, logarithmic form
+xrow <- 6
+regtabledid1856lin[xteffect,xrow] <- summary(nb1propn)$coefficients[2,c(1,2,3)]
+regtabledid1856lin[xresidev,xrow] <- summary(nb1propn)$deviance
+regtabledid1856lin[xlambeth,xrow] <- summary(nb1propn)$coefficients[3,c(1,3)]
+regtabledid1856lin[xother,xrow] <- summary(nb1propn)$coefficients[4,c(1,3)]
+regtabledid1856lin[xyear,xrow] <- summary(nb1propn)$coefficients[5,c(1,3)]
+regtabledid1856lin[xresidevpv,xrow] <- (1-pchisq(summary(nb1propn)$deviance,summary(nb1propn)$df.residual))
+regtabledid1856lin[xmortality,xrow] <- exp(predict(nb1propn,newdata=regdata_pred))
+# Negative Binomial population density, logarithmic form
+xrow <- 7
+regtabledid1856lin[xteffect,xrow] <- summary(nb1propn_den)$coefficients[2,c(1,2,3)]
+regtabledid1856lin[xresidev,xrow] <- summary(nb1propn_den)$deviance
+regtabledid1856lin[xlambeth,xrow] <- summary(nb1propn_den)$coefficients[3,c(1,3)]
+regtabledid1856lin[xother,xrow] <- summary(nb1propn_den)$coefficients[4,c(1,3)]
+regtabledid1856lin[xyear,xrow] <- summary(nb1propn_den)$coefficients[5,c(1,3)]
+regtabledid1856lin[xhden,xrow] <- summary(nb1propn_den)$coefficients[6,c(1,3)]
+regtabledid1856lin[xresidevpv,xrow] <- (1-pchisq(summary(nb1propn_den)$deviance,summary(nb1propn_den)$df.residual))
+regtabledid1856lin[xmortality,xrow] <- exp(predict(nb1propn_den,newdata=regdata_pred))
+# Negative Binomial FE, logarithmic form
+xrow <- 8
+regtabledid1856lin[xteffect,xrow] <- summary(nb2propn)$coefficients[2,c(1,2,3)]
+regtabledid1856lin[xresidev,xrow] <- summary(nb2propn)$deviance
+regtabledid1856lin[xlambeth,xrow] <- summary(nb2propn)$coefficients[3,c(1,3)]
+regtabledid1856lin[xother,xrow] <- summary(nb2propn)$coefficients[4,c(1,3)]
+regtabledid1856lin[xyear,xrow] <- summary(nb2propn)$coefficients[5,c(1,3)]
+regtabledid1856lin[xresidevpv,xrow] <- (1-pchisq(summary(nb2propn)$deviance,summary(nb2propn)$df.residual))
 
-kable(regtabledid1856lin[c(1,3,9,10),c(2,4)],digits=3, caption = "Summary - Diff-in-Diffs Comparison Using Population Proportions",format='pandoc')
+kable(regtabledid1856lin[c(1,3,9,10,12,13),c(2,4,5)],digits=3, caption = "Summary - Diff-in-Diffs Comparison Using Population Proportions",format='pandoc')
 
 
 ```
 
-Then a code chunk for the various permutations of count regressions with population proportions, six regressions in total:
+Note the very low predicted Lambeth mortality rate for the "Linear Negative Binomial" model. I believe this is an artifact of the linear functional form and the effect of housing density. Linearity forces the same *additive* effect on mortality rate, which is probably not appropriate. Southwark rates are on the order of 170 and Lambeth on the order of 20. With the estimated density coefficient roughly 10, if housing density is one percentage point lower that would be a modest effect on the Southwark rate (from 170 to 160) but a huge effect on Lambeth (from 20 to 10). Linearity is probably not a good assumption - the effect is more likely to be multiplicative. 
+
+The problem shows up particularly because of the positive correlation between density and proportion of Lambeth customers: It appears that sub-districts with a higher proportion of Lambeth customers are also higher housing density (correlation `r round(cor(regdata[regdata[,c("supplier")] == "SouthwarkVauxhall_Lambeth","pop_per_house"],regdata[regdata[,c("supplier")] == "SouthwarkVauxhall_Lambeth","lambethperc"]),2) `). 
+
+The numbers quoted in the table are the predicted rate for "average" housing density, `r round(mean(regdata$pop_per_house),2)` people per house.  Reporting the predicted rate for "average" density probably pushes the mortality for Lambeth customers below what it should be. Using a larger housing density would give a more appropriate prediction. Note that the linear Negative Binomial regression run without housing density predicts a rate of `r round(predict(nb1propn_lin,newdata=regdata_predlin)[2],1)`. The logarithmic form of the Negative Binomial, which we think should be better behaved because it is based on multiplicative effects, predicts `r round(10000*exp(predict(nb1propn,newdata=regdata_predlin)[2]),1)` for no housing density, and `r round(10000*exp(predict(nb1propn_den,newdata=regdata_predlin)[2]),1)` with (average) housing density.
+
+
+Below is a code chunk for the various permutations of count regressions with population proportions, six regressions in total:
 
 + Poisson and Negative Binomial
 + For each, no population density, yes population density, sub-district fixed effects.
 
 ```{r}
-# Copyright (c) 2019, Thomas Coleman
-#
-#  -------  Licensed under BSD 2-Clause "Simplified" License  -------
-#
-# Results and discussion in "Causality in the Time of Cholera: John Snow as a Prototype 
-# for Causal Inference (Working Paper)" available at SSRN: https://papers.ssrn.com/abstract=3262234
-
 # Create table with regression results (diff-in-diffs estimate) using robust SEs
 # for all except the NB1 (Negative Binomial without sub-district fixed effects)
 regtabledid1856 <- matrix(0,nrow=21,ncol=6)
@@ -343,55 +484,107 @@ rownames(regtabledid1856) <- c("Lambeth 1854 effect","SE","z value","p-value",
 	"theta","resid dev","pop den","SE","z value","p-value")
 # Populate the table from the regressions
 # Poiss no population density
-regtabledid1856[c(1,2,3,4),1] <- summary(pois1popn)$coefficients[2,c(1,2,3,4)]
-regtabledid1856[c(5,6),1] <- pois1popnrobustse[2,c(2,3)]
+regtabledid1856[c(1,2,3,4),1] <- summary(pois1propn)$coefficients[2,c(1,2,3,4)]
+regtabledid1856[c(5,6),1] <- pois1propnrobustse[2,c(2,3)]
 regtabledid1856[7,1] <- exp(regtabledid1856[1,1])
-regtabledid1856[c(8,9,10,11),1] <- summary(pois1popn)$coefficients[3,c(1,2,3,4)]
-regtabledid1856[c(12,13,14,15),1] <- summary(pois1popn)$coefficients[4,c(1,2,3,4)]
-regtabledid1856[17,1] <- summary(pois1popn)$deviance
+regtabledid1856[c(8,9,10,11),1] <- summary(pois1propn)$coefficients[3,c(1,2,3,4)]
+regtabledid1856[c(12,13,14,15),1] <- summary(pois1propn)$coefficients[4,c(1,2,3,4)]
+regtabledid1856[17,1] <- summary(pois1propn)$deviance
 # Poiss Population density
-regtabledid1856[c(1,2,3,4),2] <- summary(pois1popn_den)$coefficients[2,c(1,2,3,4)]
-regtabledid1856[c(5,6),2] <- pois1popn_denrobustse[2,c(2,3)]
+regtabledid1856[c(1,2,3,4),2] <- summary(pois1propn_den)$coefficients[2,c(1,2,3,4)]
+regtabledid1856[c(5,6),2] <- pois1propn_denrobustse[2,c(2,3)]
 regtabledid1856[7,2] <- exp(regtabledid1856[1,2])
-regtabledid1856[c(8,9,10,11),2] <- summary(pois1popn_den)$coefficients[3,c(1,2,3,4)]
-regtabledid1856[c(12,13,14,15),2] <- summary(pois1popn_den)$coefficients[4,c(1,2,3,4)]
-regtabledid1856[17,2] <- summary(pois1popn_den)$deviance
-regtabledid1856[c(18,19,20,21),2] <- summary(pois1popn_den)$coefficients[5,c(1,2,3,4)]
+regtabledid1856[c(8,9,10,11),2] <- summary(pois1propn_den)$coefficients[3,c(1,2,3,4)]
+regtabledid1856[c(12,13,14,15),2] <- summary(pois1propn_den)$coefficients[4,c(1,2,3,4)]
+regtabledid1856[17,2] <- summary(pois1propn_den)$deviance
+regtabledid1856[c(18,19,20,21),2] <- summary(pois1propn_den)$coefficients[5,c(1,2,3,4)]
 # Poiss Fixed Effects
-regtabledid1856[c(1,2,3,4),3] <- summary(pois2popn)$coefficients[2,c(1,2,3,4)]
-regtabledid1856[c(5,6),3] <- pois2popnrobustse[2,c(2,3)]
+regtabledid1856[c(1,2,3,4),3] <- summary(pois2propn)$coefficients[2,c(1,2,3,4)]
+regtabledid1856[c(5,6),3] <- pois2propnrobustse[2,c(2,3)]
 regtabledid1856[7,3] <- exp(regtabledid1856[1,3])
-regtabledid1856[c(8,9,10,11),3] <- summary(pois2popn)$coefficients[3,c(1,2,3,4)]
-regtabledid1856[c(12,13,14,15),3] <- summary(pois2popn)$coefficients[4,c(1,2,3,4)]
-regtabledid1856[17,3] <- summary(pois2popn)$deviance
+regtabledid1856[c(8,9,10,11),3] <- summary(pois2propn)$coefficients[3,c(1,2,3,4)]
+regtabledid1856[c(12,13,14,15),3] <- summary(pois2propn)$coefficients[4,c(1,2,3,4)]
+regtabledid1856[17,3] <- summary(pois2propn)$deviance
 # NB no population density
-regtabledid1856[c(1,2,3,4),4] <- summary(nb1popn)$coefficients[2,c(1,2,3,4)]
-regtabledid1856[c(5,6),4] <- nb1popnrobustse[2,c(2,3)]
+regtabledid1856[c(1,2,3,4),4] <- summary(nb1propn)$coefficients[2,c(1,2,3,4)]
+regtabledid1856[c(5,6),4] <- nb1propnrobustse[2,c(2,3)]
 regtabledid1856[7,4] <- exp(regtabledid1856[1,3])
-regtabledid1856[c(8,9,10,11),4] <- summary(nb1popn)$coefficients[3,c(1,2,3,4)]
-regtabledid1856[c(12,13,14,15),4] <- summary(nb1popn)$coefficients[4,c(1,2,3,4)]
-regtabledid1856[16,4] <- summary(nb1popn)$theta
-regtabledid1856[17,4] <- summary(nb1popn)$deviance
+regtabledid1856[c(8,9,10,11),4] <- summary(nb1propn)$coefficients[3,c(1,2,3,4)]
+regtabledid1856[c(12,13,14,15),4] <- summary(nb1propn)$coefficients[4,c(1,2,3,4)]
+regtabledid1856[16,4] <- summary(nb1propn)$theta
+regtabledid1856[17,4] <- summary(nb1propn)$deviance
 # NB population density & water company percent
-regtabledid1856[c(1,2,3,4),5] <- summary(nb1popn_den)$coefficients[2,c(1,2,3,4)]
-regtabledid1856[c(5,6),5] <- nb1popn_denrobustse[2,c(2,3)]
+regtabledid1856[c(1,2,3,4),5] <- summary(nb1propn_den)$coefficients[2,c(1,2,3,4)]
+regtabledid1856[c(5,6),5] <- nb1propn_denrobustse[2,c(2,3)]
 regtabledid1856[7,5] <- exp(regtabledid1856[1,5])
-regtabledid1856[c(8,9,10,11),5] <- summary(nb1popn_den)$coefficients[3,c(1,2,3,4)]
-regtabledid1856[c(12,13,14,15),5] <- summary(nb1popn_den)$coefficients[4,c(1,2,3,4)]
-regtabledid1856[16,5] <- summary(nb1popn_den)$theta
-regtabledid1856[17,5] <- summary(nb1popn_den)$deviance
-regtabledid1856[c(18,19,20,21),5] <- summary(nb1popn_den)$coefficients[5,c(1,2,3,4)]
+regtabledid1856[c(8,9,10,11),5] <- summary(nb1propn_den)$coefficients[3,c(1,2,3,4)]
+regtabledid1856[c(12,13,14,15),5] <- summary(nb1propn_den)$coefficients[4,c(1,2,3,4)]
+regtabledid1856[16,5] <- summary(nb1propn_den)$theta
+regtabledid1856[17,5] <- summary(nb1propn_den)$deviance
+regtabledid1856[c(18,19,20,21),5] <- summary(nb1propn_den)$coefficients[5,c(1,2,3,4)]
 # NB FEs
-regtabledid1856[c(1,2,3,4),6] <- summary(nb2popn)$coefficients[2,c(1,2,3,4)]
-regtabledid1856[c(5,6),6] <- nb2popnrobustse[2,c(2,3)]
+regtabledid1856[c(1,2,3,4),6] <- summary(nb2propn)$coefficients[2,c(1,2,3,4)]
+regtabledid1856[c(5,6),6] <- nb2propnrobustse[2,c(2,3)]
 regtabledid1856[7,6] <- exp(regtabledid1856[1,6])
-regtabledid1856[c(8,9,10,11),6] <- summary(nb2popn)$coefficients[3,c(1,2,3,4)]
-regtabledid1856[c(12,13,14,15),6] <- summary(nb2popn)$coefficients[4,c(1,2,3,4)]
-regtabledid1856[16,6] <- summary(nb2popn)$theta
-regtabledid1856[17,6] <- summary(nb2popn)$deviance
+regtabledid1856[c(8,9,10,11),6] <- summary(nb2propn)$coefficients[3,c(1,2,3,4)]
+regtabledid1856[c(12,13,14,15),6] <- summary(nb2propn)$coefficients[4,c(1,2,3,4)]
+regtabledid1856[16,6] <- summary(nb2propn)$theta
+regtabledid1856[17,6] <- summary(nb2propn)$deviance
 
 
 ```
+
+###Plots For Poisson Error Analasys - Showing too much variation 
+
+The Poisson regressions do not account for enough of the variation - the data seem to show that there is more variation than would be accounted for by constant mortality rates (constant for each supplier - Southwark & Vauxhall Company, Lambeth Company, and "Other"), even if we allow each sub-district to vary. The data seem to show that there is some random variation in mortality across the years and sub-districts, but that even so there is a large treatment effect for Lambeth Company's clean water supply in 1854. 
+
+```{r}
+xfamily <- preperrdata(pois1propn,"continuous")  # this function modifies global data
+
+
+#pdf(paste("../paper/figures/errbar_","pois1_didcont","c.pdf",sep=""))
+  plot3(x1849,x1854,"SouthwarkVauxhall",paste("First-12 Southwark-only ",xfamily," 1849vs1854 "))
+#dev.off()
+#pdf(paste("../paper/figures/errbar_","pois1_didcont","d.pdf",sep=""))
+  plot3(x1849,x1854,"SouthwarkVauxhall_Lambeth",paste("Next-16 Jointly-Supplied ",xfamily," 1849vs1854 "))
+#dev.off()
+```
+
+
+First, we can look at the most basic Poisson regression (done in logarithmic form), including a treatment effect, a year effect, and a Southwark-versus-Lambeth effect for 1849. (This uses the plot functions in "SnowPlotFns.r".) The red circles are the 1849 rates. The blue diamonds are 1854 rates but adjusted for the 1854 effect and the treatment effect - in other words made comparable to the 1849 rates. The empty circles are the 1849 predicted rates, with approximate 95% error bars. 
+
+This Poisson regression does not fit the data - many observations (33 out of 56 or 59%) are outside the 95% confidence bands. There is simply more variation across sub-districts than could be accounted for with a constant rate for each of the three suppliers.
+
+```{r}
+xfamily <- preperrdata(pois2propn,"continuous")  # this function modifies global data
+
+#pdf(paste("../paper/figures/errbar_","pois2_didcont","c.pdf",sep=""))
+  plot3(x1849,x1854,"SouthwarkVauxhall",paste("First-12 Southwark-only FE",xfamily," 1849vs1854 "))
+#dev.off()
+
+#pdf(paste("../paper/figures/errbar_","pois2_didcont","d.pdf",sep=""))
+  plot3(x1849,x1854,"SouthwarkVauxhall_Lambeth",paste("Next-16 Jointly-Supplied FE",xfamily," 1849vs1854 "))
+#dev.off()
+```
+
+A very reasonable alternative is that rates vary across sub-districts - each sub-district has it's own rate. This is a fixed effects model, a fixed-coefficient model for rate variation across sub-districts. This explanation does not fit the data well, because there is still too much variation, in this case variation across years but within sub-districts. There are roughly 18 out of 56 or 32% of observations outside the 95% confidence bands.
+
+
+```{r}
+xfamily <- preperrdata(nb1propn,"continuous")  # this function modifies global data
+
+#pdf(paste("../paper/figures/errbar_","nb1_didcont","c.pdf",sep=""))
+  plot3(x1849,x1854,"SouthwarkVauxhall",paste("First-12 Southwark-only ",xfamily," 1849vs1854 "))
+#dev.off()
+
+#pdf(paste("../paper/figures/errbar_","nb1_didcont","d.pdf",sep=""))
+  plot3(x1849,x1854,"SouthwarkVauxhall_Lambeth",paste("Next-16 Jointly-Supplied ",xfamily," 1849vs1854 "))
+#dev.off()
+```
+
+A third alternative is that mortality rates vary across sub-districts and years in a random manner. A Negative Binomial model is a Gamma-mixture model of Poissons - individuals each have a Poisson intensity for mortality, but the Poisson intensities are distributed across the population according to a Gamma distribution, with the variance of the Gamma parameter to be estimated. 
+
+This figure shows the results, and this model fits the data reasonably well. There are 3 out of 56 or 5.45 of the observations outside the approximate 95% confidence bands. 
 
 
 ###Conclusion - Snow was Right - Clean Water Matters
