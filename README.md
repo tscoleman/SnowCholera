@@ -26,7 +26,7 @@ Each notebook is designed to be self-contained and independent (in terms of code
   + calculates and explains a simple diff-in-diffs table comparing 1849 versus 1854 for the "first-12" and "next-16" sub-districts
   + calculates Table IX (mortality rates by houses, simple quasi-randomized comparision - quasi-randomized control trial), and calculates imputed houses for Southwark versus Lambeth and mortality rates.
 3. Snow1855_DiDRegression1
-  + Runs linear and count regressions for the comparision of 1849 versus 1854, using data from Snow 1855 (i.e. without detailed sub-district population)
+  + Runs linear and count regressions for the comparision of 1849 versus 1854, using data from Snow 1855 (i.e. without sub-district population separately by supplier)
 4. Snow1855_DidRegression2_ErrorAnalysis
   + Discusses in more detail the error process for count regressions for 1849 versus 1854
   + The data exhibit more variability than consistent with Poisson counts - what is called in the literature "overdispersion"
