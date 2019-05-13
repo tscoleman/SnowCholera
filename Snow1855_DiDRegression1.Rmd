@@ -30,7 +30,7 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute
 Try executing the chunk below by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
 
 **NB: We need the data and some of the calculations from the notebook 'Snow1855_DiDRegression1.Rmd' so we execute this little hack to extract the R code from that sheet, write a new .R file, and then source that here**
-``````{r}
+``````{r message=FALSE, results='hide'}
 # Copyright (c) 2019, Thomas Coleman
 #
 #  -------  Licensed under BSD 2-Clause "Simplified" License  -------
@@ -119,14 +119,14 @@ We can start out by running a linear regression (linear in logs). The following 
 
 ```{r}
 # Linear-in-logs with Lambeth ("supplier" or "first-12" vs "next-16") and year indicators
-lin1single <- lm(log(regdata$rate/10000) ~ regdata$supplier * regdata$year )
+lin1single <- lm(log(rate/10000) ~ supplier * year, data=regdata) 
 lin1singlerobustse <- coeftest(lin1single, vcov = vcovHC(lin1single))
 summary(lin1single)
 # Linear-in-logs with two Lambeth indicators ("first-12" vs "next-16 split into less_lambeth" and "more_lambeth") and year indicators
-lin1both <- lm(log(regdata$rate/10000) ~ regdata$lambethdegree * regdata$year )
+lin1both <- lm(log(rate/10000) ~ lambethdegree * year, data=regdata) 
 lin1bothrobustse <- coeftest(lin1both, vcov = vcovHC(lin1both))
 # Linear-in-logs with sub-district fixed effects and Lambeth ("supplier" or "first-12" vs "next-16") and year indicators
-lin2both <- lm(log(regdata$rate/10000) ~ regdata$subDistrict + regdata$lambethdegree * regdata$year )
+lin2both <- lm(log(rate/10000) ~ subDistrict + lambethdegree * year, data=regdata) 
 lin2bothrobustse <- coeftest(lin2both, vcov = vcovHC(lin2both))
 ```
 
@@ -146,26 +146,26 @@ The following code chunk runs Poisson regressions. The various combinations of s
 
 ```{r}
 # Poisson with single "Lambeth effect" and same rate for all sub-districts (no sub-district fixed effects)
-pois1single <- glm(regdata$deaths ~ regdata$supplier * regdata$year 
-	+ offset(log(regdata$pop1851)), family=poisson)
+pois1single <- glm(deaths ~ supplier * year 
+	+ offset(log(pop1851)), family=poisson, data=regdata) 
 pois1singlerobustse <- coeftest(pois1single, vcov = vcovHC(pois1single))
 #summary(pois1single)
 #logLik(pois1single)
 # Poisson with two "Lambeth effects" and same rate for all sub-districts (no sub-district fixed effects)
-pois1both <- glm(regdata$deaths ~ regdata$lambethdegree * regdata$year 
-	+ offset(log(regdata$pop1851)), family=poisson)
+pois1both <- glm(deaths ~ lambethdegree * year 
+	+ offset(log(pop1851)), family=poisson, data=regdata) 
 pois1bothrobustse <- coeftest(pois1both, vcov = vcovHC(pois1both))
 #summary(pois1both)
 #logLik(pois1both)
 # Poisson with single "Lambeth effect" and different rates by sub-district (fixed effects)
-pois2single <- glm(regdata$deaths ~ regdata$subDistrict + regdata$supplier * regdata$year 
-	+ offset(log(regdata$pop1851)), family=poisson)
+pois2single <- glm(deaths ~ subDistrict + supplier * year 
+	+ offset(log(pop1851)), family=poisson, data=regdata) 
 pois2singlerobustse <- coeftest(pois2single, vcov = vcovHC(pois2single))
 #summary(pois2single)
 #logLik(pois2single)
 # Poisson with two "Lambeth effects" and different rates by sub-district (fixed effects)
-pois2both <- glm(regdata$deaths ~ regdata$subDistrict + regdata$supplier * regdata$year 
-	+ offset(log(regdata$pop1851)), family=poisson)
+pois2both <- glm(deaths ~ subDistrict + supplier * year 
+	+ offset(log(pop1851)), family=poisson, data=regdata) 
 pois2bothrobustse <- coeftest(pois2both, vcov = vcovHC(pois2both))
 #summary(pois2both)
 #logLik(pois2both)
@@ -201,24 +201,24 @@ Another way to handle the overdispersion (again, discussed in more detail in ano
 
 ```{r}
 # Negative Binomial with single "Lambeth effect" 
-nb1single <- glm.nb(regdata$deaths ~ regdata$supplier * regdata$year 
-	+ offset(log(regdata$pop1851)))
+nb1single <- glm.nb(deaths ~ supplier * year 
+	+ offset(log(pop1851)), data=regdata) 
 nb1singlerobustse <- coeftest(nb1single, vcov = vcovHC(nb1single))
 #summary(nb1single)
 #logLik(nb1single)
 #print(coeftest(nb1single, vcov = vcovHC(nb1single)))
 
 # Negative Binomial with two "Lambeth effects" 
-nb1both <- glm.nb(regdata$deaths ~ regdata$lambethdegree * regdata$year 
-	+ offset(log(regdata$pop1851)))
+nb1both <- glm.nb(deaths ~ lambethdegree * year 
+	+ offset(log(pop1851)), data=regdata) 
 nb1bothrobustse <- coeftest(nb1both, vcov = vcovHC(nb1both))
 #summary(nb1both)
 #logLik(nb1both)
 #print(coeftest(nb1both, vcov = vcovHC(nb1both)))
 
 # Negative Binomial with two "Lambeth effects" and sub-district fixed effects
-nb2both <- glm.nb(regdata$deaths ~ regdata$subDistrict + regdata$lambethdegree * regdata$year 
-	+ offset(log(regdata$pop1851)))
+nb2both <- glm.nb(deaths ~ subDistrict + lambethdegree * year 
+	+ offset(log(pop1851)), data=regdata) 
 nb2bothrobustse <- coeftest(nb2both, vcov = vcovHC(nb2both))
 #summary(nb2both)
 #logLik(nb2both)
