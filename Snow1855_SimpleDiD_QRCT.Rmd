@@ -34,7 +34,7 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute
 
 Try executing the chunk below by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
 
-```{r}
+```{r message=FALSE, results='hide'}
 # Copyright (c) 2019, Thomas Coleman
 #
 #  -------  Licensed under BSD 2-Clause "Simplified" License  -------
@@ -87,22 +87,30 @@ comparecounts1849_1854 <- array(0,dim=c(3,2))
 colnames(comparecounts1849_1854) <- c("1849","1854")
 rownames(comparecounts1849_1854) <- c("first 12 Southwark-only","next 16 Jointly-supplied","last 4 Lambeth")
 # Create array to hold rates
-compare1849_1854 <- array(0,dim=c(3,2))
-colnames(compare1849_1854) <- c("1849","1854")
-rownames(compare1849_1854) <- c("first 12 Southwark-only","next 16 Jointly-supplied","last 4 Lambeth")
-# Fill in arrays for counts and rates
+comparerates1849_1854 <- array(0,dim=c(3,2))
+colnames(comparerates1849_1854) <- c("1849","1854")
+rownames(comparerates1849_1854) <- c("first 12 Southwark-only","next 16 Jointly-supplied","last 4 Lambeth")
+# Create array to hold population
+comparepop1849_1854 <- array(0,dim=c(3,2))
+colnames(comparepop1849_1854) <- c("1849","1854")
+rownames(comparepop1849_1854) <- c("first 12 Southwark-only","next 16 Jointly-supplied","last 4 Lambeth")
+# Fill in arrays for counts and rates and population
 x1 <- subset(tablexii,supplier=="first12")
 comparecounts1849_1854[1,] <- data.matrix(x1[2:3])
-compare1849_1854[1,] <- data.matrix(10000*x1[2:3]/pop1851[1])
+comparerates1849_1854[1,] <- data.matrix(10000*x1[2:3]/pop1851[1])
+comparepop1849_1854[1,] <- pop1851[1]
 x1 <- subset(tablexii,supplier=="next16")
 comparecounts1849_1854[2,] <- data.matrix(x1[2:3])
-compare1849_1854[2,] <- data.matrix(10000*x1[2:3]/pop1851[2])
+comparerates1849_1854[2,] <- data.matrix(10000*x1[2:3]/pop1851[2])
+comparepop1849_1854[2,] <- pop1851[2]
 x1 <- subset(tablexii,supplier=="last4")
 comparecounts1849_1854[3,] <- data.matrix(x1[2:3])
-compare1849_1854[3,] <- data.matrix(10000*x1[2:3]/pop1851[3])
+comparerates1849_1854[3,] <- data.matrix(10000*x1[2:3]/pop1851[3])
+comparepop1849_1854[3,] <- pop1851[3]
 #
 kable(comparecounts1849_1854, caption = "Mortality (number of deaths)",format='pandoc')
-kable(compare1849_1854, digits=2, caption = "Mortality (rate per 10,000)",format='pandoc')
+kable(comparepop1849_1854, caption = "Population",format='pandoc')
+kable(comparerates1849_1854, digits=2, caption = "Mortality (rate per 10,000)",format='pandoc')
 
 ```
 
@@ -134,7 +142,7 @@ The bottom-right corner of the table ($\beta$) shows the effect of treatment, co
 ```{r results='asis'}
 # Do diff-in-diffs (in levels) for Southwark-only vs Jointly-supplied
 diff_in_diffs_Level <- array(0,dim=c(3,3))
-diff_in_diffs_Level[1:2,1:2] <- compare1849_1854[1:2,] 
+diff_in_diffs_Level[1:2,1:2] <- comparerates1849_1854[1:2,] 
 # Difference across columns
 diff_in_diffs_Level[1:2,3] <- diff_in_diffs_Level[1:2,2] - diff_in_diffs_Level[1:2,1]
 diff_in_diffs_Level[3,] <- diff_in_diffs_Level[2,] - diff_in_diffs_Level[1,]
@@ -142,7 +150,7 @@ colnames(diff_in_diffs_Level) <- c("level 1849","level 1854","col diffs")
 rownames(diff_in_diffs_Level) <- c("first 12 Southwark-only","next 16 Jointly-supplied","row diffs")
 # Now do it in logs
 diff_in_diffs_Log <- array(0,dim=c(3,3))
-diff_in_diffs_Log[1:2,1:2] <- log(compare1849_1854[1:2,] / 10000)
+diff_in_diffs_Log[1:2,1:2] <- log(comparerates1849_1854[1:2,] / 10000)
 # Difference across columns
 diff_in_diffs_Log[1:2,3] <- diff_in_diffs_Log[1:2,2] - diff_in_diffs_Log[1:2,1]
 diff_in_diffs_Log[3,] <- diff_in_diffs_Log[2,] - diff_in_diffs_Log[1,]
@@ -154,9 +162,9 @@ kable(diff_in_diffs_Log,digits=4,caption="Diff-in-Diffs, Logs",format='pandoc')
 
 ```
 
-Clean water effect in ratio terms - Expressed as decrease (Southwark -> Lambeth) and increase (Lambeth -> Southwark) - is: `r round(c(exp(diff_in_diffs_Log[3,3]),exp(-diff_in_diffs_Log[3,3])),3)`.
+Clean water effect in ratio terms - Expressed as decrease (Southwark -> Lambeth) it is `r round(exp(diff_in_diffs_Log[3,3]),3)` and as increase (Lambeth -> Southwark) it is: `r round(exp(-diff_in_diffs_Log[3,3]),3)`.
 
-In additional notebooks I extend this analysis. One set of notebooks discuss count regressions for diff-in-diffs. This provides the statistical framework for incorporating the sub-district variability we see in Snow's Table XII. A second set of notebooks builds on the sub-district population data published in Snow's 1856 "Cholera and the water supply in the south district of London in 1854" for more detailed analysis of the 1849 versus 1854 data. 
+In additional notebooks I extend this analysis. One set of notebooks (*Snow1855_DiDRegression1.Rmd* and *Snow1855_DiDRegression2_ErrorAnalysis.Rmd*) discusses count regressions for diff-in-diffs. This provides the statistical framework for incorporating the sub-district variability we see in Snow's Table XII. A second notebook (*Snow1856_TableVI_DiD.Rmd*) builds on the sub-district population data published in Snow's 1856 "Cholera and the water supply in the south district of London in 1854" for more detailed analysis of the 1849 versus 1854 data. 
 
 ### Quasi-Randomized Comparison: Southwark & Vauxhall versus Lambeth Customers
 
