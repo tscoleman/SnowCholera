@@ -29,7 +29,7 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute
 
 Try executing the chunk below by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
 
-**NB: We need the data and some of the calculations from the notebook 'Snow1855_DiDRegression1.Rmd' so we execute this little hack to extract the R code from that sheet, write a new .R file, and then source that here**
+**NB: We need the data and some of the calculations from the notebook 'Snow1855_SimpleDiD_QRCT.Rmd' so we execute this little hack to extract the R code from that sheet, write a new .R file, and then source that here**
 ``````{r message=FALSE, results='hide'}
 # Copyright (c) 2019, Thomas Coleman
 #
@@ -68,7 +68,24 @@ kable(diff_in_diffs_Level,digits=2,caption="Diff-in-Diffs, Levels (rate per 10,0
 kable(diff_in_diffs_Log,digits=3,caption="Diff-in-Diffs, Levels (rate per 10,000)",format='pandoc')
 ```
 
-This table looks very simple, and with a population of over 450,000 (`r popSouthwarkVauxhall` in the "first-12" and `r popSouthwarkVauxhall_Lambeth` in the "next-16") we would think the estimate of `r round(diff_in_diffs_Log[3,3],3)` would be precisely estimated. But but when we examine the original data (Snow's Table XII) we see there is considerable variation across sub-districts. Looking only at the first two sub-districts in 1849, for example, `r tablexii[1,1]` has mortality of `r round(tablexii[1,6],1)` while `r tablexii[2,1]` has mortality of `r round(tablexii[2,6],1)`. We cannot simply highlight and exploit the variability between the aggregate "first-12" and "next-16" sub-districts while ignoring the variability across and within sub-districts. We need some statistical framework to incorporate and analyze the variability within and across sub-districts. 
+This table looks very simple, and with a population of over 450,000 (`r popSouthwarkVauxhall` in the "first-12" and `r popSouthwarkVauxhall_Lambeth` in the "next-16") we would think the estimate of `r round(diff_in_diffs_Log[3,3],3)` would be precisely estimated. In fact, we can run a Poisson regrssion, a count regression which *seems* the right way to fit this table and test for the statistical significance of the diff-in-diffs coefficient. 
+
+```{r}
+
+regdatasimple <- data.frame("deaths" = c(comparecounts1849_1854[1:2,]), "pop1851" = c(comparepop1849_1854[1:2,]))
+regdatasimple$supplier <- c("SouthwarkVauxhall","SouthwarkVauxhall_Lambeth","SouthwarkVauxhall","SouthwarkVauxhall_Lambeth")
+regdatasimple$year <- c("1849","1849","1854","1854")
+
+pois1simple <- glm(deaths ~ supplier * year + offset(log(pop1851)), family=poisson, data=regdatasimple) 
+
+summary(pois1simple)
+
+```
+
+The diff-in-diffs coffficient is *`r variable.names(pois1simple)[4]`* with the same value (in log terms) as the table above: `r round(pois1simple$coefficients[4],3)` (in ratio terms - the increase in mortality for Southwark & Vauxhall customers versus Lambeth customers - this is  `r round(exp(-pois1simple$coefficients[4]),3)`). This appears to be very significant, with z value `r round(summary(pois1simple)$coefficients[4,3],2) `. But we would be wrong to rely on this regression. 
+
+
+We can see the reason when we examine the original data (Snow's Table XII): there is considerable variation across sub-districts. Looking only at the first two sub-districts in 1849, for example, `r tablexii[1,1]` has mortality of `r round(tablexii[1,6],1)` while `r tablexii[2,1]` has mortality of `r round(tablexii[2,6],1)`. We cannot simply highlight and exploit the difference between the aggregate "first-12" and "next-16" sub-districts (the diff-in-diffs coefficient `r round(pois1simple$coefficients[4],4)`) while ignoring the variability across and within sub-districts. We need some statistical framework to incorporate and analyze the variability both *within* and *across* sub-districts. 
 
 ```{r}
 tablexii[,c(1,2,3,4,6,7)]
