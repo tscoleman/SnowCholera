@@ -35,7 +35,7 @@ This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute
 
 Try executing the chunk below by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
 
-``````{r}
+``````{r message=FALSE, results='hide'}
 # Copyright (c) 2019, Thomas Coleman
 #
 #  -------  Licensed under BSD 2-Clause "Simplified" License  -------
@@ -156,29 +156,29 @@ This code chunk runs the Poisson regressions, but I am not printing them out her
 
 ```{r}
 # Poisson with same rate for all sub-districts (no sub-district fixed effects)
-pois1_TableVIII <- glm(regdata1855VIIjoint$deaths ~ regdata1855VIIjoint$supplier 
-	+ offset(log(regdata1855VIIjoint$population)), family=poisson)
+pois1_TableVIII <- glm(deaths ~ supplier 
+	+ offset(log(population)), family=poisson, data = regdata1855VIIjoint)
 pois1_TableVIIIrobustse <- coeftest(pois1_TableVIII, vcov = vcovHC(pois1_TableVIII))
 #summary(pois1_TableVIII))
 #print(pois1_TableVIIIrobustse)
 
 # Poisson with population (housing) density
-pois1pop_TableVIII <- glm(regdata1855VIIjoint$deaths ~ regdata1855VIIjoint$supplier + regdata1855VIIjoint$pop_per_house 
-	+ offset(log(regdata1855VIIjoint$population)), family=poisson)
+pois1pop_TableVIII <- glm(deaths ~ supplier + pop_per_house 
+	+ offset(log(population)), family=poisson, data = regdata1855VIIjoint)
 pois1pop_TableVIIIrobustse <- coeftest(pois1pop_TableVIII, vcov = vcovHC(pois1pop_TableVIII))
 #summary(pois1pop_TableVIII))
 #print(pois1pop_TableVIIIrobustse)
 
 # Poisson with different rates by sub-district (fixed effects)
-pois2_TableVIII <- glm(regdata1855VIIjoint$deaths ~ regdata1855VIIjoint$supplier + regdata1855VIIjoint$subDistrict
-	+ offset(log(regdata1855VIIjoint$population)), family=poisson)
+pois2_TableVIII <- glm(deaths ~ supplier + subDistrict
+	+ offset(log(population)), family=poisson, data = regdata1855VIIjoint)
 pois2_TableVIIIrobustse <- coeftest(pois2_TableVIII, vcov = vcovHC(pois2_TableVIII))
 #summary(pois2_TableVIII))
 #print(pois2_TableVIIIrobustse)
 
 # Quasi-Poisson, allowing dispersion to be a free parameter
-poisQuasi <- glm(regdata1855VIIjoint$deaths ~ regdata1855VIIjoint$supplier 
-	+ offset(log(regdata1855VIIjoint$population)), family=quasipoisson)
+poisQuasi <- glm(deaths ~ supplier 
+	+ offset(log(population)), family=quasipoisson, data = regdata1855VIIjoint)
 poisQuasirobustse <- coeftest(poisQuasi, vcov = vcovHC(poisQuasi))
 #summary(poisQuasi))
 
@@ -196,7 +196,7 @@ The following code chunk runs Negative Binomial regressions, both with and witho
 
 ```{r}
 # Negative Binomial 
-nb1_TableVIII <- glm.nb(regdata1855VIIjoint$deaths ~ regdata1855VIIjoint$supplier + offset(log(regdata1855VIIjoint$population)))
+nb1_TableVIII <- glm.nb(deaths ~ supplier + offset(log(population)), data = regdata1855VIIjoint)
 nb1_TableVIIIrobustse <- coeftest(nb1_TableVIII, vcov = vcovHC(nb1_TableVIII))
 #summary(nb1_TableVIII))
 #print(nb1_TableVIIIrobustse)
@@ -204,8 +204,8 @@ nb1_TableVIIIrobustse <- coeftest(nb1_TableVIII, vcov = vcovHC(nb1_TableVIII))
 
 # Negative Binomial with district fixed effects
 # Doesn't converge so comment out 
-#nb2_TableVIII <- glm.nb(regdata1855VIIjoint$deaths ~ regdata1855VIIjoint$supplier + regdata1855VIIjoint$subDistrict
-#	+ offset(log(regdata1855VIIjoint$population)))
+#nb2_TableVIII <- glm.nb(deaths ~ supplier + subDistrict
+#	+ offset(log(population)), data = regdata1855VIIjoint)
 #nb2_TableVIIIrobustse <- coeftest(nb2_TableVIII, vcov = vcovHC(nb2_TableVIII))
 #summary(nb2_TableVIII))
 #print(nb2_TableVIIIrobustse)
@@ -230,15 +230,15 @@ nb1_TableVIIIrobustse <- coeftest(nb1_TableVIII, vcov = vcovHC(nb1_TableVIII))
 # taking into account the water supplier (Southwark vs Lambeth)
 # Results seem to show that pop density is not significant.
 # Remember - To get "Lambeth effect" need to take const + coeff(density)*avg(density)
-nb1pop_TableVIII <- glm.nb(regdata1855VIIjoint$deaths ~ regdata1855VIIjoint$supplier + regdata1855VIIjoint$pop_per_house 
-	+ offset(log(regdata1855VIIjoint$population)))
+nb1pop_TableVIII <- glm.nb(deaths ~ supplier + pop_per_house 
+	+ offset(log(population)), data = regdata1855VIIjoint)
 nb1pop_TableVIIIrobustse <- coeftest(nb1pop_TableVIII, vcov = vcovHC(nb1pop_TableVIII))
 #summary(nb1pop_TableVIII))
 #print(nb1pop_TableVIIIrobustse)
 
 
-nb1pop_TableVIIIboth <- glm.nb(regdata1855VIIboth$deaths ~ regdata1855VIIboth$supplier + regdata1855VIIboth$pop_per_house 
-	+ offset(log(regdata1855VIIboth$population)))
+nb1pop_TableVIIIboth <- glm.nb(deaths ~ supplier + pop_per_house 
+	+ offset(log(population)), data = regdata1855VIIboth)
 nb1pop_TableVIIIbothrobustse <- coeftest(nb1pop_TableVIIIboth, vcov = vcovHC(nb1pop_TableVIIIboth))
 #summary(nb1pop_TableVIIIboth))
 #print(nb1pop_TableVIIIbothrobustse)
@@ -512,16 +512,34 @@ colnames(xother) <- c("district","districtID","density_Snow","pop","deaths_adj")
 xother$pop <- x1$pop1851 - (x1$pop_southwark + x1$pop_lambeth)
 xother$deaths_adj <- x1$deaths_pumps
 xother$supplier <- "xOther"
-# Remove Bermondsey & Newington because they show negative pump population (Southwark + Lambeth
+# Remove Bermondsey & Newington & Lambeth because they show negative (or very low) pump population (Southwark + Lambeth
 # combined estimated population greater than 1851 census)
 # This is not a good way to handle the problem but I can't figure out any better
-xother <- xother[-c(3,5),]
+xother <- xother[-c(3,5,6),]
 
-regdataV_1856 <- rbind(xsouthwark,xlambeth)
-regdataV_1856_TableV <- rbind(xsouthwark,xlambeth,xother)
+regdata_1856V_2supp <- rbind(xsouthwark,xlambeth)
+regdata_1856V_3supp <- rbind(xsouthwark,xlambeth,xother)
 
 
 ```
+
+####Underlying Data for Quasi-Randomized Comparison
+
+```{r}
+
+tableV_display <- tableV_1856[,c("district","deaths_southwark_adj","deaths_lambeth_adj","deaths_pumps","deaths_total","pop1851","pop_southwark","pop_lambeth")]
+tableV_display$mortality_southwark <- 10000 * tableV_display$deaths_southwark_adj / tableV_display$pop_southwark
+tableV_display$mortality_lambeth <- 10000 * tableV_display$deaths_lambeth_adj / tableV_display$pop_lambeth
+tableV_display$mortality_pumps <- 10000 * tableV_display$deaths_pumps / (tableV_display$pop1851 - tableV_display$pop_southwark - tableV_display$pop_lambeth)
+tableV_display$pop_pumps <- tableV_display$pop1851 - tableV_display$pop_southwark - tableV_display$pop_lambeth
+tableV_display$percent_southwark <- 100 * tableV_display$pop_southwark / tableV_display$pop1851
+tableV_display$percent_lambeth <- 100 * tableV_display$pop_lambeth / tableV_display$pop1851
+tableV_display$percent_pumps <- 100 - tableV_display$percent_southwark - tableV_display$percent_lambeth
+kable(tableV_display[c(1,2,3,4,5,6,7,8,9,12),c("district","pop1851","pop_southwark","mortality_southwark","pop_lambeth",
+          "mortality_lambeth","pop_pumps","mortality_pumps")],digits=1, caption = "Mortality by Supplier from 1856 Table V (after allocating unassigned)",format='pandoc')
+
+```
+
 
 
 ####Poisson Regressions
@@ -531,23 +549,41 @@ The following code chunk runs Poisson regression (but does not print out results
 ```{r}
 # -------  Now Count Regressions with Supplier = Southwark, Lambeth, and Other 
 # Poisson with no density
-pois1_TableV <- glm(regdataV_1856_TableV$deaths_adj ~ regdataV_1856_TableV$supplier 
-	+ offset(log(regdataV_1856_TableV$pop)), family=poisson)
+pois1_TableV <- glm(deaths_adj ~ supplier 
+	+ offset(log(pop)), family=poisson, data=regdata_1856V_3supp)
 pois1_TableVrobustse <- coeftest(pois1_TableV, vcov = vcovHC(pois1_TableV))
 #summary(pois1_TableV)
 
 # Poisson with yes density
-pois1_TableVpop <- glm(regdataV_1856_TableV$deaths_adj ~ regdataV_1856_TableV$supplier + regdataV_1856_TableV$density_Snow
-	+ offset(log(regdataV_1856_TableV$pop)), family=poisson)
-pois1_TableVpoprobustse <- coeftest(pois1_TableVpop, vcov = vcovHC(pois1_TableVpop))
-#summary(pois1_TableVpop)
+pois1pop_TableV <- glm(deaths_adj ~ supplier + density_Snow
+	+ offset(log(pop)), family=poisson, data=regdata_1856V_3supp)
+pois1pop_TableVrobustse <- coeftest(pois1pop_TableV, vcov = vcovHC(pois1pop_TableV))
+#summary(pois1pop_TableV)
 
 # Poisson with FE
-pois1_TableVFE <- glm(regdataV_1856_TableV$deaths_adj ~ regdataV_1856_TableV$supplier + regdataV_1856_TableV$district
-	+ offset(log(regdataV_1856_TableV$pop)), family=poisson)
-pois1_TableVFErobustse <- coeftest(pois1_TableVFE, vcov = vcovHC(pois1_TableVFE))
-#summary(pois1_TableVFE)
+poisFE_TableV <- glm(deaths_adj ~ supplier + district
+	+ offset(log(pop)), family=poisson, data=regdata_1856V_3supp)
+poisFE_TableVrobustse <- coeftest(poisFE_TableV, vcov = vcovHC(poisFE_TableV))
+#summary(poisFE_TableV)
 
+# -------  Now Count Regressions with Supplier = Southwark, Lambeth
+# Poisson with no density
+pois1_TableV_2supp <- glm(deaths_adj ~ supplier 
+	+ offset(log(pop)), family=poisson, data=regdata_1856V_2supp)
+pois1_TableV_2supprobustse <- coeftest(pois1_TableV_2supp, vcov = vcovHC(pois1_TableV_2supp))
+#summary(pois1_TableV_2supp)
+
+# Poisson with yes density
+pois1pop_TableV_2supp <- glm(deaths_adj ~ supplier + density_Snow
+	+ offset(log(pop)), family=poisson, data=regdata_1856V_2supp)
+pois1pop_TableV_2supprobustse <- coeftest(pois1pop_TableV_2supp, vcov = vcovHC(pois1pop_TableV_2supp))
+#summary(pois1pop_TableV_2supp)
+
+# Poisson with FE
+poisFE_TableV_2supp <- glm(deaths_adj ~ supplier + district
+	+ offset(log(pop)), family=poisson, data=regdata_1856V_2supp)
+poisFE_TableV_2supprobustse <- coeftest(poisFE_TableV_2supp, vcov = vcovHC(poisFE_TableV_2supp))
+#summary(poisFE_TableV_2supp)
 
 ```
 
@@ -559,16 +595,28 @@ The following code chunk runs Negative Binomial regression (but does not print o
 
 ```{r}
 # Negative Binomial with no density
-nb1_TableV <- glm.nb(regdataV_1856_TableV$deaths_adj ~ regdataV_1856_TableV$supplier 
-	+ offset(log(regdataV_1856_TableV$pop)))
+nb1_TableV <- glm.nb(deaths_adj ~ supplier 
+	+ offset(log(pop)), data = regdata_1856V_3supp)
 nb1_TableVrobustse <- coeftest(nb1_TableV, vcov = vcovHC(nb1_TableV))
 #summary(nb1_TableV)
 
 # Negative Binomial with yes density
-nb1pop_TableV <- glm.nb(regdataV_1856_TableV$deaths_adj ~ regdataV_1856_TableV$supplier + regdataV_1856_TableV$density_Snow
-	+ offset(log(regdataV_1856_TableV$pop)))
+nb1pop_TableV <- glm.nb(deaths_adj ~ supplier + density_Snow
+	+ offset(log(pop)), data = regdata_1856V_3supp)
 nb1pop_TableVrobustse <- coeftest(nb1pop_TableV, vcov = vcovHC(nb1pop_TableV))
 #summary(nb1pop_TableV)
+
+# Negative Binomial with no density, only Southwark and Lambeth
+nb1_TableV_2supp <- glm.nb(deaths_adj ~ supplier 
+	+ offset(log(pop)), data = regdata_1856V_2supp)
+nb1_TableV_2supprobustse <- coeftest(nb1_TableV_2supp, vcov = vcovHC(nb1_TableV_2supp))
+#summary(nb1_TableV_2supp)
+
+# Negative Binomial with yes density, only Southwark & Lambeth
+nb1pop_TableV_2supp <- glm.nb(deaths_adj ~ supplier + density_Snow
+	+ offset(log(pop)), data = regdata_1856V_2supp)
+nb1pop_TableV_2supprobustse <- coeftest(nb1pop_TableV_2supp, vcov = vcovHC(nb1pop_TableV_2supp))
+#summary(nb1pop_TableV_2supp)
 
 
 ```
@@ -583,42 +631,41 @@ The following code chunk populates a table with summary statistics for various r
 
 ```{r}
 # Create table with regression results for 1854 by Registration District (Southwark & Lambeth only) 
-regtable1856TableV <- matrix(0,nrow=16,ncol=5)
-colnames(regtable1856TableV) <- c("Poiss","Poiss pop","PoissFE","NB","NB pop")
+regtable1856TableV <- matrix(0,nrow=16,ncol=7)
+colnames(regtable1856TableV) <- c("Poiss","Poiss pop","PoissFE","NB","NB pop","NB 2supp","NB pop 2supp")
 rownames(regtable1856TableV) <- c("Lambeth effect","SE","z value","p-value",
 	"robust SE","z value","ratio effect",
 	"theta","resid dev","p-value","pop den","SE","z value","Southwark pred mort",
 	"Lambeth pred mort","Other pred mort")
 # Populate the table from the regressions
 # Poiss no population density
-regtable1856TableV[c(1,2,3,4),1] <- summary(pois1_TableV)$coefficients[2,c(1,2,3,4)]
-regtable1856TableV[c(5,6),1] <- pois1_TableVrobustse[2,c(2,3)]
+regtable1856TableV[c(1,2,3,4),1] <- summary(pois1_TableV_2supp)$coefficients[2,c(1,2,3,4)]
+regtable1856TableV[c(5,6),1] <- pois1_TableV_2supprobustse[2,c(2,3)]
 regtable1856TableV[7,1] <- exp(-regtable1856TableV[1,1])
-#regtable1856TableV[c(8,9,10,11),1] <- summary(pois1_TableV)$coefficients[4,c(1,2,3,4)]
-regtable1856TableV[9,1] <- summary(pois1_TableV)$deviance
-regtable1856TableV[10,1] <- 1 - pchisq(pois1_TableV$deviance,pois1_TableV$df.residual)
-regtable1856TableV[14,1] <- 10000 * sum(pois1_TableV$fitted.values[1:9]) / sum(regdataV_1856_TableV$pop[1:9])
-regtable1856TableV[15,1] <- 10000 * sum(pois1_TableV$fitted.values[10:16]) / sum(regdataV_1856_TableV$pop[10:16])
-regtable1856TableV[16,1] <- 10000 * sum(pois1_TableV$fitted.values[17:23]) / sum(regdataV_1856_TableV$pop[17:23])
+regtable1856TableV[9,1] <- summary(pois1_TableV_2supp)$deviance
+regtable1856TableV[10,1] <- 1 - pchisq(pois1_TableV_2supp$deviance,pois1_TableV_2supp$df.residual)
+regtable1856TableV[14,1] <- 10000 * sum(pois1_TableV_2supp$fitted.values[1:9]) / sum(regdata_1856V_3supp$pop[1:9])
+regtable1856TableV[15,1] <- 10000 * sum(pois1_TableV_2supp$fitted.values[10:16]) / sum(regdata_1856V_3supp$pop[10:16])
+#regtable1856TableV[16,1] <- 10000 * sum(pois1_TableV_2supp$fitted.values[17:22]) / sum(regdata_1856V_3supp$pop[17:22])
 # Poiss yes population density
-regtable1856TableV[c(1,2,3,4),2] <- summary(pois1_TableVpop)$coefficients[2,c(1,2,3,4)]
-regtable1856TableV[c(5,6),2] <- pois1_TableVpoprobustse[2,c(2,3)]
+regtable1856TableV[c(1,2,3,4),2] <- summary(pois1pop_TableV_2supp)$coefficients[2,c(1,2,3,4)]
+regtable1856TableV[c(5,6),2] <- pois1pop_TableV_2supprobustse[2,c(2,3)]
 regtable1856TableV[7,2] <- exp(-regtable1856TableV[1,2])
-regtable1856TableV[c(11,12,13),2] <- summary(pois1_TableVpop)$coefficients[4,c(1,2,3)]
-regtable1856TableV[9,2] <- summary(pois1_TableVpop)$deviance
-regtable1856TableV[10,2] <- 1 - pchisq(pois1_TableVpop$deviance,pois1_TableVpop$df.residual)
-regtable1856TableV[14,2] <- 10000 * sum(pois1_TableVpop$fitted.values[1:9]) / sum(regdataV_1856_TableV$pop[1:9])
-regtable1856TableV[15,2] <- 10000 * sum(pois1_TableVpop$fitted.values[10:16]) / sum(regdataV_1856_TableV$pop[10:16])
-regtable1856TableV[16,2] <- 10000 * sum(pois1_TableVpop$fitted.values[17:23]) / sum(regdataV_1856_TableV$pop[17:23])
+regtable1856TableV[c(11,12,13),2] <- summary(pois1pop_TableV_2supp)$coefficients[3,c(1,2,3)]
+regtable1856TableV[9,2] <- summary(pois1pop_TableV_2supp)$deviance
+regtable1856TableV[10,2] <- 1 - pchisq(pois1pop_TableV_2supp$deviance,pois1pop_TableV_2supp$df.residual)
+regtable1856TableV[14,2] <- 10000 * sum(pois1pop_TableV_2supp$fitted.values[1:9]) / sum(regdata_1856V_3supp$pop[1:9])
+regtable1856TableV[15,2] <- 10000 * sum(pois1pop_TableV_2supp$fitted.values[10:16]) / sum(regdata_1856V_3supp$pop[10:16])
+#regtable1856TableV[16,2] <- 10000 * sum(pois1pop_TableV_2supp$fitted.values[17:22]) / sum(regdata_1856V_3supp$pop[17:22])
 # Poiss FE
-regtable1856TableV[c(1,2,3,4),3] <- summary(pois1_TableVFE)$coefficients[2,c(1,2,3,4)]
-regtable1856TableV[c(5,6),3] <- pois1_TableVFErobustse[2,c(2,3)]
+regtable1856TableV[c(1,2,3,4),3] <- summary(poisFE_TableV_2supp)$coefficients[2,c(1,2,3,4)]
+regtable1856TableV[c(5,6),3] <- poisFE_TableV_2supprobustse[2,c(2,3)]
 regtable1856TableV[7,3] <- exp(-regtable1856TableV[1,3])
-regtable1856TableV[9,3] <- summary(pois1_TableVFE)$deviance
-regtable1856TableV[10,3] <- 1 - pchisq(pois1_TableVFE$deviance,pois1_TableVFE$df.residual)
-regtable1856TableV[14,3] <- 10000 * sum(pois1_TableVFE$fitted.values[1:9]) / sum(regdataV_1856_TableV$pop[1:9])
-regtable1856TableV[15,3] <- 10000 * sum(pois1_TableVFE$fitted.values[10:16]) / sum(regdataV_1856_TableV$pop[10:16])
-regtable1856TableV[16,3] <- 10000 * sum(pois1_TableVFE$fitted.values[17:23]) / sum(regdataV_1856_TableV$pop[17:23])
+regtable1856TableV[9,3] <- summary(poisFE_TableV_2supp)$deviance
+regtable1856TableV[10,3] <- 1 - pchisq(poisFE_TableV_2supp$deviance,poisFE_TableV_2supp$df.residual)
+regtable1856TableV[14,3] <- 10000 * sum(poisFE_TableV_2supp$fitted.values[1:9]) / sum(regdata_1856V_3supp$pop[1:9])
+regtable1856TableV[15,3] <- 10000 * sum(poisFE_TableV_2supp$fitted.values[10:16]) / sum(regdata_1856V_3supp$pop[10:16])
+#regtable1856TableV[16,3] <- 10000 * sum(poisFE_TableV_2supp$fitted.values[17:22]) / sum(regdata_1856V_3supp$pop[17:22])
 # Neg Binom no population density
 regtable1856TableV[c(1,2,3,4),4] <- summary(nb1_TableV)$coefficients[2,c(1,2,3,4)]
 regtable1856TableV[c(5,6),4] <- nb1_TableVrobustse[2,c(2,3)]
@@ -626,9 +673,9 @@ regtable1856TableV[7,4] <- exp(-regtable1856TableV[1,4])
 regtable1856TableV[8,4] <- summary(nb1_TableV)$theta
 regtable1856TableV[9,4] <- summary(nb1_TableV)$deviance
 regtable1856TableV[10,4] <- 1 - pchisq(nb1_TableV$deviance,nb1_TableV$df.residual)
-regtable1856TableV[14,4] <- 10000 * sum(nb1_TableV$fitted.values[1:9]) / sum(regdataV_1856_TableV$pop[1:9])
-regtable1856TableV[15,4] <- 10000 * sum(nb1_TableV$fitted.values[10:16]) / sum(regdataV_1856_TableV$pop[10:16])
-regtable1856TableV[16,4] <- 10000 * sum(nb1_TableV$fitted.values[17:23]) / sum(regdataV_1856_TableV$pop[17:23])
+regtable1856TableV[14,4] <- 10000 * sum(nb1_TableV$fitted.values[1:9]) / sum(regdata_1856V_3supp$pop[1:9])
+regtable1856TableV[15,4] <- 10000 * sum(nb1_TableV$fitted.values[10:16]) / sum(regdata_1856V_3supp$pop[10:16])
+regtable1856TableV[16,4] <- 10000 * sum(nb1_TableV$fitted.values[17:22]) / sum(regdata_1856V_3supp$pop[17:22])
 # Neg Binom yes population density
 regtable1856TableV[c(1,2,3,4),5] <- summary(nb1pop_TableV)$coefficients[2,c(1,2,3,4)]
 regtable1856TableV[c(5,6),5] <- nb1pop_TableVrobustse[2,c(2,3)]
@@ -637,11 +684,30 @@ regtable1856TableV[8,5] <- summary(nb1pop_TableV)$theta
 regtable1856TableV[c(11,12,13),5] <- summary(nb1pop_TableV)$coefficients[4,c(1,2,3)]
 regtable1856TableV[9,5] <- summary(nb1pop_TableV)$deviance
 regtable1856TableV[10,5] <- 1 - pchisq(nb1pop_TableV$deviance,nb1pop_TableV$df.residual)
-regtable1856TableV[14,5] <- 10000 * sum(nb1pop_TableV$fitted.values[1:9]) / sum(regdataV_1856_TableV$pop[1:9])
-regtable1856TableV[15,5] <- 10000 * sum(nb1pop_TableV$fitted.values[10:16]) / sum(regdataV_1856_TableV$pop[10:16])
-regtable1856TableV[16,5] <- 10000 * sum(nb1pop_TableV$fitted.values[17:23]) / sum(regdataV_1856_TableV$pop[17:23])
+regtable1856TableV[14,5] <- 10000 * sum(nb1pop_TableV$fitted.values[1:9]) / sum(regdata_1856V_3supp$pop[1:9])
+regtable1856TableV[15,5] <- 10000 * sum(nb1pop_TableV$fitted.values[10:16]) / sum(regdata_1856V_3supp$pop[10:16])
+regtable1856TableV[16,5] <- 10000 * sum(nb1pop_TableV$fitted.values[17:22]) / sum(regdata_1856V_3supp$pop[17:22])
+# Neg Binom no population density, 2 suppliers (Southwark and Lambeth only)
+regtable1856TableV[c(1,2,3,4),6] <- summary(nb1_TableV_2supp)$coefficients[2,c(1,2,3,4)]
+regtable1856TableV[c(5,6),6] <- nb1_TableV_2supprobustse[2,c(2,3)]
+regtable1856TableV[7,6] <- exp(-regtable1856TableV[1,6])
+regtable1856TableV[8,6] <- summary(nb1_TableV_2supp)$theta
+regtable1856TableV[9,6] <- summary(nb1_TableV_2supp)$deviance
+regtable1856TableV[10,6] <- 1 - pchisq(nb1_TableV_2supp$deviance,nb1_TableV_2supp$df.residual)
+regtable1856TableV[14,6] <- 10000 * sum(nb1_TableV_2supp$fitted.values[1:9]) / sum(regdata_1856V_3supp$pop[1:9])
+regtable1856TableV[15,6] <- 10000 * sum(nb1_TableV_2supp$fitted.values[10:16]) / sum(regdata_1856V_3supp$pop[10:16])
+# Neg Binom yes population density, 2 suppliers (Southwark and Lambeth only)
+regtable1856TableV[c(1,2,3,4),7] <- summary(nb1pop_TableV_2supp)$coefficients[2,c(1,2,3,4)]
+regtable1856TableV[c(5,6),7] <- nb1pop_TableV_2supprobustse[2,c(2,3)]
+regtable1856TableV[7,7] <- exp(-regtable1856TableV[1,7])
+regtable1856TableV[8,7] <- summary(nb1pop_TableV_2supp)$theta
+regtable1856TableV[c(11,12,13),7] <- summary(nb1pop_TableV_2supp)$coefficients[3,c(1,2,3)]
+regtable1856TableV[9,7] <- summary(nb1pop_TableV_2supp)$deviance
+regtable1856TableV[10,7] <- 1 - pchisq(nb1pop_TableV_2supp$deviance,nb1pop_TableV_2supp$df.residual)
+regtable1856TableV[14,7] <- 10000 * sum(nb1pop_TableV_2supp$fitted.values[1:9]) / sum(regdata_1856V_3supp$pop[1:9])
+regtable1856TableV[15,7] <- 10000 * sum(nb1pop_TableV_2supp$fitted.values[10:16]) / sum(regdata_1856V_3supp$pop[10:16])
 
-kable(regtable1856TableV[c(1,3,9,10,14,15,16),c(3,5)],digits=3, caption = "Summary - Quasi-Randomized Regressions, 1856 Table V (by District, full 1854 epidemic)",format='pandoc')
+kable(regtable1856TableV[c(1,2,3,5,6,7,8,9,10,11,12,13,14,15,16),c(1,3,6,7)],digits=3, caption = "Summary - Quasi-Randomized Regressions, 1856 Table V (by District, full 1854 epidemic)",format='pandoc')
 
 
 ```
