@@ -246,6 +246,13 @@ pois1propn_linrobustse <- coeftest(pois1propn_lin, vcov = vcovHC(pois1propn_lin)
 #summary(pois1propn_lin)
 #logLik(pois1propn_lin)
 
+# Poisson FE regression with linear (identity) link function
+pois2propn_lin <- glm(deaths ~ pop1851 + lambethperc54 + lambethperc + otherperc + yearind
+	+subDistrict - 1 , family=poisson(link="identity"), data=regdata_lin)
+pois2propn_linrobustse <- coeftest(pois2propn_lin, vcov = vcovHC(pois2propn_lin))
+#summary(pois2propn_lin)
+#logLik(pois2propn_lin)
+
 # Negative Binomial with linear (identity) link function
 nb1propn_lin <- glm.nb(deaths ~ pop1851 + lambethperc54 + lambethperc + otherperc + yearind
 	 - 1, link = identity, data = regdata_lin)
@@ -367,8 +374,9 @@ regdata_predlin$yearind <- 1
 # --------------------- #
 # Create table with regression results (diff-in-diffs estimate) using robust SEs
 # for all except the NB1 (Negative Binomial without sub-district fixed effects)
-regtabledid1856lin <- matrix(0,nrow=16,ncol=8)
-colnames(regtabledid1856lin) <- c("Lin OLS","Lin Poisson","Lin Neg Binom","Lin NB H den","Lin NB FE",
+regtabledid1856lin <- matrix(0,nrow=16,ncol=9)
+colnames(regtabledid1856lin) <- c("Lin OLS","Lin Poisson","Lin Poiss FE",
+                                  "Lin Neg Binom","Lin NB, House","Lin NB, FE",
                                   "Log NB","Log NB H den","log NB FE")
 rownames(regtabledid1856lin) <- c("Lambeth 1854 effect","SE","z value",
 	"lambeth perc","z value","other perc","z value","1854","z value",
@@ -401,8 +409,16 @@ regtabledid1856lin[xother,xrow] <- summary(pois1propn_lin)$coefficients[4,c(1,3)
 regtabledid1856lin[xyear,xrow] <- summary(pois1propn_lin)$coefficients[5,c(1,3)]
 regtabledid1856lin[xresidevpv,xrow] <- (1-pchisq(summary(pois1propn_lin)$deviance,summary(pois1propn_lin)$df.residual))
 regtabledid1856lin[xmortality,xrow] <- predict(pois1propn_lin,newdata=regdata_predlin)
-# Negative Binomial, linear form
+# Negative Binomial FE, linear form
 xrow <- 3
+regtabledid1856lin[xteffect,xrow] <- summary(pois2propn_lin)$coefficients[2,c(1,2,3)]
+regtabledid1856lin[xresidev,xrow] <- summary(pois2propn_lin)$deviance
+regtabledid1856lin[xlambeth,xrow] <- summary(pois2propn_lin)$coefficients[3,c(1,3)]
+regtabledid1856lin[xother,xrow] <- summary(pois2propn_lin)$coefficients[4,c(1,3)]
+regtabledid1856lin[xyear,xrow] <- summary(pois2propn_lin)$coefficients[5,c(1,3)]
+regtabledid1856lin[xresidevpv,xrow] <- (1-pchisq(summary(pois2propn_lin)$deviance,summary(pois2propn_lin)$df.residual))
+# Negative Binomial, linear form
+xrow <- 4
 regtabledid1856lin[xteffect,xrow] <- summary(nb1propn_lin)$coefficients[2,c(1,2,3)]
 regtabledid1856lin[xresidev,xrow] <- summary(nb1propn_lin)$deviance
 regtabledid1856lin[xlambeth,xrow] <- summary(nb1propn_lin)$coefficients[3,c(1,3)]
@@ -410,8 +426,8 @@ regtabledid1856lin[xother,xrow] <- summary(nb1propn_lin)$coefficients[4,c(1,3)]
 regtabledid1856lin[xyear,xrow] <- summary(nb1propn_lin)$coefficients[5,c(1,3)]
 regtabledid1856lin[xresidevpv,xrow] <- (1-pchisq(summary(nb1propn_lin)$deviance,summary(nb1propn_lin)$df.residual))
 regtabledid1856lin[xmortality,xrow] <- predict(nb1propn_lin,newdata=regdata_predlin)
-# Negative Binomial housing density, linear form
-xrow <- 4
+# Negative Binomial population density, linear form
+xrow <- 5
 regtabledid1856lin[xteffect,xrow] <- summary(nb1propn_linden)$coefficients[2,c(1,2,3)]
 regtabledid1856lin[xresidev,xrow] <- summary(nb1propn_linden)$deviance
 regtabledid1856lin[xlambeth,xrow] <- summary(nb1propn_linden)$coefficients[3,c(1,3)]
@@ -420,16 +436,17 @@ regtabledid1856lin[xyear,xrow] <- summary(nb1propn_linden)$coefficients[5,c(1,3)
 regtabledid1856lin[xhden,xrow] <- summary(nb1propn_linden)$coefficients[6,c(1,3)]
 regtabledid1856lin[xresidevpv,xrow] <- (1-pchisq(summary(nb1propn_linden)$deviance,summary(nb1propn_linden)$df.residual))
 regtabledid1856lin[xmortality,xrow] <- predict(nb1propn_linden,newdata=regdata_predlin)
-# Negative Binomial FE, linear form
-xrow <- 5
+# Negative Binomial FE, logarithmic form
+xrow <- 6
 regtabledid1856lin[xteffect,xrow] <- summary(nb2propn_lin)$coefficients[2,c(1,2,3)]
 regtabledid1856lin[xresidev,xrow] <- summary(nb2propn_lin)$deviance
 regtabledid1856lin[xlambeth,xrow] <- summary(nb2propn_lin)$coefficients[3,c(1,3)]
 regtabledid1856lin[xother,xrow] <- summary(nb2propn_lin)$coefficients[4,c(1,3)]
 regtabledid1856lin[xyear,xrow] <- summary(nb2propn_lin)$coefficients[5,c(1,3)]
 regtabledid1856lin[xresidevpv,xrow] <- (1-pchisq(summary(nb2propn_lin)$deviance,summary(nb2propn_lin)$df.residual))
+
 # Negative Binomial, logarithmic form
-xrow <- 6
+xrow <- 7
 regtabledid1856lin[xteffect,xrow] <- summary(nb1propn)$coefficients[2,c(1,2,3)]
 regtabledid1856lin[xresidev,xrow] <- summary(nb1propn)$deviance
 regtabledid1856lin[xlambeth,xrow] <- summary(nb1propn)$coefficients[3,c(1,3)]
@@ -438,7 +455,7 @@ regtabledid1856lin[xyear,xrow] <- summary(nb1propn)$coefficients[5,c(1,3)]
 regtabledid1856lin[xresidevpv,xrow] <- (1-pchisq(summary(nb1propn)$deviance,summary(nb1propn)$df.residual))
 regtabledid1856lin[xmortality,xrow] <- exp(predict(nb1propn,newdata=regdata_pred))
 # Negative Binomial population density, logarithmic form
-xrow <- 7
+xrow <- 8
 regtabledid1856lin[xteffect,xrow] <- summary(nb1propn_den)$coefficients[2,c(1,2,3)]
 regtabledid1856lin[xresidev,xrow] <- summary(nb1propn_den)$deviance
 regtabledid1856lin[xlambeth,xrow] <- summary(nb1propn_den)$coefficients[3,c(1,3)]
@@ -448,7 +465,7 @@ regtabledid1856lin[xhden,xrow] <- summary(nb1propn_den)$coefficients[6,c(1,3)]
 regtabledid1856lin[xresidevpv,xrow] <- (1-pchisq(summary(nb1propn_den)$deviance,summary(nb1propn_den)$df.residual))
 regtabledid1856lin[xmortality,xrow] <- exp(predict(nb1propn_den,newdata=regdata_pred))
 # Negative Binomial FE, logarithmic form
-xrow <- 8
+xrow <- 9
 regtabledid1856lin[xteffect,xrow] <- summary(nb2propn)$coefficients[2,c(1,2,3)]
 regtabledid1856lin[xresidev,xrow] <- summary(nb2propn)$deviance
 regtabledid1856lin[xlambeth,xrow] <- summary(nb2propn)$coefficients[3,c(1,3)]
@@ -539,13 +556,13 @@ regtabledid1856[17,6] <- summary(nb2propn)$deviance
 The Poisson regressions do not account for enough of the variation - the data seem to show that there is more variation than would be accounted for by constant mortality rates (constant for each supplier - Southwark & Vauxhall Company, Lambeth Company, and "Other"), even if we allow each sub-district to vary. The data seem to show that there is some random variation in mortality across the years and sub-districts, but that even so there is a large treatment effect for Lambeth Company's clean water supply in 1854. 
 
 ```{r}
-xfamily <- preperrdata(pois1propn,"continuous")  # this function modifies global data
+xfamily <- preperrdata(pois1propn_lin,single="continuous",link="linear")  # this function modifies global data
 
 
-#pdf(paste("../paper/figures/errbar_","pois1_didcont","c.pdf",sep=""))
+#pdf(paste("../paper/figures/errbar_","pois1_didcontlin","cpdf",sep=""))
   plot3(x1849,x1854,"SouthwarkVauxhall",paste("First-12 Southwark-only ",xfamily," 1849vs1854 "))
 #dev.off()
-#pdf(paste("../paper/figures/errbar_","pois1_didcont","d.pdf",sep=""))
+#pdf(paste("../paper/figures/errbar_","pois1_didcontlin","dpdf",sep=""))
   plot3(x1849,x1854,"SouthwarkVauxhall_Lambeth",paste("Next-16 Jointly-Supplied ",xfamily," 1849vs1854 "))
 #dev.off()
 ```
@@ -556,13 +573,13 @@ First, we can look at the most basic Poisson regression (done in logarithmic for
 This Poisson regression does not fit the data - many observations (33 out of 56 or 59%) are outside the 95% confidence bands. There is simply more variation across sub-districts than could be accounted for with a constant rate for each of the three suppliers.
 
 ```{r}
-xfamily <- preperrdata(pois2propn,"continuous")  # this function modifies global data
+xfamily <- preperrdata(pois2propn_lin,"continuous",link="linear")  # this function modifies global data
 
-#pdf(paste("../paper/figures/errbar_","pois2_didcont","c.pdf",sep=""))
+#pdf(paste("../paper/figures/errbar_","pois2_didcontlin","cpdf",sep=""))
   plot3(x1849,x1854,"SouthwarkVauxhall",paste("First-12 Southwark-only FE",xfamily," 1849vs1854 "))
 #dev.off()
 
-#pdf(paste("../paper/figures/errbar_","pois2_didcont","d.pdf",sep=""))
+#pdf(paste("../paper/figures/errbar_","pois2_didcontlin","dpdf",sep=""))
   plot3(x1849,x1854,"SouthwarkVauxhall_Lambeth",paste("Next-16 Jointly-Supplied FE",xfamily," 1849vs1854 "))
 #dev.off()
 ```
@@ -571,13 +588,13 @@ A very reasonable alternative is that rates vary across sub-districts - each sub
 
 
 ```{r}
-xfamily <- preperrdata(nb1propn,"continuous")  # this function modifies global data
+xfamily <- preperrdata(nb1propn_lin,"continuous",link="linear")  # this function modifies global data
 
-#pdf(paste("../paper/figures/errbar_","nb1_didcont","c.pdf",sep=""))
+#pdf(paste("../paper/figures/errbar_","nb1_didcontlin","cpdf",sep=""))
   plot3(x1849,x1854,"SouthwarkVauxhall",paste("First-12 Southwark-only ",xfamily," 1849vs1854 "))
 #dev.off()
 
-#pdf(paste("../paper/figures/errbar_","nb1_didcont","d.pdf",sep=""))
+#pdf(paste("../paper/figures/errbar_","nb1_didcontlin","dpdf",sep=""))
   plot3(x1849,x1854,"SouthwarkVauxhall_Lambeth",paste("Next-16 Jointly-Supplied ",xfamily," 1849vs1854 "))
 #dev.off()
 ```
