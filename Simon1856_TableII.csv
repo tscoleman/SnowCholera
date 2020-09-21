@@ -1,0 +1,24 @@
+﻿"John Simon et al. 1856, ""Report on the last two cholera-epidemics of London, as affected by the consumption of impure water""",,,,,,,,,,,,,,,,,,,,,,,,
+Table II,,,,,,,,,,,,,,,,,,,,,,,,
+"Transcribed by Thomas Coleman, University of Chicago Harris School of Public Policy",,,,,,,,,,,,,,,,,,,,,,,,
+"Houses, Population, Water-Supply, and Cholera-Deaths in the Nine Surrey Districts of London",,,,,,,,,,,,,,,,,,,,,,,,
+Registration Districts,,Number of inhabited houses in 1851,,,,,Number of Houses and estimated Number of Persons supplied in 1854 with Water as under ---,,,,Number of Deaths from Cholera in Houses which in 1854 were supplied with Water as under ---,,,,,,"Proportion of Deaths from Cholera, per 1,000 of estimated population, in Houses which in 1854 were supplied with Water as under ---",,,,,Proportions calculated from the data in columns to the left,,
+,,Number of inhabited houses in 1851,Estimated population in 1849,1851,Estimated population in 1849,Estimated constant population per House,Number of Houses Lambeth,Estimated Population Lambeth,Number of Houses Southwark and Vauxhall,Estimated Population Southwark and Vauxhall,Lambeth Co 1848-49,Lambeth Co 1853-54,southwark Co 1848-49,southwark Co 1853-54,unknown Co 1848-49,unknown Co 1853-54,by the Lambeth Company 1848-49,by the Lambeth Company 1853-54,by the Lambeth Company 1848-49,by the Lambeth Company 1853-54,,,,
+district,districtID,houses1851,pop1849,pop1851,pop1854,density_Simon,houses_lambeth,pop_lambeth,houses_southwark,pop_southwark,deaths_lambeth_1848,deaths_lambeth_1853,deaths_southwark_1848,deaths_southwark_1853,deaths_unknown_1848,deaths_unknown_1853,mortrate_lambeth_1848,mortrate_lambeth_1853,mortrate_southwark_1848,mortrate_southwark_1853,mortratecalc_lambeth_1848,mortratecalc_lambeth_1853,mortratecalc_southwark_1848,mortratecalc_southwark_1853
+"St. Saviour, Southwark",1,4600,35162,35731,36603,7.8,1689,14201,2631,19617,236,103,272,410,44,38,17.3,7.3,14.4,20.9,17.30,7.25,14.43,20.90
+"St. Olave, Southwark",2,2360,19115,19375,19524,8.2,0,0,2193,18638,0,0,307,297,62,44,0,0,16.8,15.9,0,0,16.82,15.94
+Bermondsey,3,7007,45082,48128,50720,6.9,268,1785,8402,57884,15,11,698,854,60,58,9.4,6.2,13.6,14.8,9.45,6.16,13.57,14.75
+"St. George, Southwark",4,6992,50141,51824,53509,7.4,3183,23712,3419,25039,314,96,409,426,145,103,14.1,4.1,17.4,17,14.13,4.05,17.43,17.01
+Newington,5,10458,62698,64816,66034,6.2,5473,33531,5224,31940,382,130,324,391,220,220,12,3.9,10.7,12.2,12.00,3.88,10.68,12.24
+Lambeth,6,20447,134357,139325,148274,6.8,11763,83786,8077,44982,924,252,329,447,411,304,12.2,3,8.1,9.9,12.17,3.01,8.07,9.94
+Wandsworth,7,8276,48553,50764,54316,6.1,618,3870,3028,18390,2,0,136,178,367,272,0.6,0,8.3,9.7,0.58,0.00,8.27,9.68
+Camberwell,8,9412,50951,54667,59873,5.8,1835,10478,4005,23472,52,19,252,307,234,255,5.8,1,12.6,13.1,5.83,1.81,12.62,13.08
+Rotherhithe,9,2792,16949,17805,19171,6.4,0,0,2336,14951,0,0,153,166,217,142,0,0,11.5,11.1,0,0,11.58,11.10
+Houses not identified,,,,,,6.6,25,165,411,2712,,,,,,,,,,,,,,
+Totals and means for the whole area,,72344,463008,482435,508024,6.7,24854,171528,39726,257625,1925,611,2880,3476,1760,1436,12.2,3.6,12.2,13.5,,,,
+"Ditto, by a different and somewhat more exact estimate of the district populations",,72344,466105,482435,511435,6.7,24854,166906,39726,268171,1925,611,2880,3476,1760,1436,12.5,3.7,11.8,13,,,,
+#CHECK,,72344,463008,482435,508024,6.7,24854,171528,39726,257625,1925,611,2880,3476,1760,1436,12.31,3.56,12.27,13.49,71.46458961,,,
+#,,ok,ok,ok,ok,,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok,PROBLEM,ok,PROBLEM,ok,PROBLEM,,,
+#NOTE for 1848-49 the Proportion (mortality rate per 1000) is calculated using an adjusted population adjusting by fraction of within district 1849 1854 population,,,,,,,,,,,,,,,,,11.53,3.66,10.74,12.96,,,,
+#I HAVE CHANGED SNOW'S ENTRY FOR CAMBERWELL 1851 POPULATION FROM 54607 TO 54667,,,,,,,,,,,,,,,,,,,,,,,,
+#Totals match 1856 Table VI,,,,,,,,,,,,,,,,,,,,,,,,

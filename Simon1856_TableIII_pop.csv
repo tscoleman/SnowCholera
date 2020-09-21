@@ -1,0 +1,41 @@
+﻿"John Simon et al. 1856, ""Report on the last two cholera-epidemics of London, as affected by the consumption of impure water""",,,,,,,,
+Table III,,,,,,,,
+"Transcribed by Thomas Coleman, University of Chicago Harris School of Public Policy",,,,,,,,
+"Houses, Population, Water-Supply, and Cholera-Deaths, in the Thirty-one Surrey Sub-districts of London",,,,,,,,
+INCLUDING ONLY THE POPULATIO IN 1849 & 1854 FROM THE TABLE,,,,,,,,
+district,subDistrict,houses1851,pop1849,pop1851,pop1854,seq_1855,supplier,lambethdegree
+"St. Saviour,  S.","Christchurch, Southwark",1887,15730,16022,16470,13,SouthwarkVauxhall_Lambeth,more_Lambeth
+"St. Saviour,  S.","St. Saviour, Southwark",2713,19432,19709,20133,1,SouthwarkVauxhall,dirty_none
+St. Olave,"St. Olave, Southwark",880,8015,8015,8015,2,SouthwarkVauxhall,dirty_none
+St. Olave,"St. John, Horsleydown",1480,11100,11360,11509,3,SouthwarkVauxhall,dirty_none
+Bermondsey,"St. James, Bermondsey",2863,17386,18899,19134,4,SouthwarkVauxhall,dirty_none
+Bermondsey,St. Mary Magdalen,1865,12942,13934,15442,5,SouthwarkVauxhall,dirty_none
+Bermondsey,Leather Market,2279,14754,15295,16144,6,SouthwarkVauxhall,dirty_none
+"St. George, S.",Kent Road,2558,17016,18126,18933,14,SouthwarkVauxhall_Lambeth,less_Lambeth
+"St. George, S.",Borough Road,2069,15635,15862,16208,15,SouthwarkVauxhall_Lambeth,less_Lambeth
+"St. George, S.",London Road,2365,17490,17836,18368,16,SouthwarkVauxhall_Lambeth,more_Lambeth
+Newington,"Trinity, Newington",3224,20651,20922,21335,17,SouthwarkVauxhall_Lambeth,less_Lambeth
+Newington,"St. Peter, Walworth",4925,28392,29861,30080,18,SouthwarkVauxhall_Lambeth,less_Lambeth
+Newington,"St. Mary, Newington",2309,13655,14033,14619,19,SouthwarkVauxhall_Lambeth,less_Lambeth
+Lambeth,Waterloo Road (1st),1729,13807,14088,14521,20,SouthwarkVauxhall_Lambeth,more_Lambeth
+Lambeth,Waterloo Road (2nd),2191,18137,18348,18668,21,SouthwarkVauxhall_Lambeth,less_Lambeth
+Lambeth,Lambeth Church (1st),2451,18409,18409,18409,22,SouthwarkVauxhall_Lambeth,more_Lambeth
+Lambeth,Lambeth Church (2nd),3849,25965,26784,28062,23,SouthwarkVauxhall_Lambeth,less_Lambeth
+Lambeth,Kennington (1st),3977,22926,24261,27401,24,SouthwarkVauxhall_Lambeth,less_Lambeth
+Lambeth,Kennington (2nd),3288,17774,18848,20583,25,SouthwarkVauxhall_Lambeth,less_Lambeth
+Lambeth,Brixton,2362,13590,14610,16285,26,SouthwarkVauxhall_Lambeth,less_Lambeth
+Lambeth,Norwood,600,3749,3977,4345,29,Lambeth,all
+Wandsworth,Clapham,2657,15622,16290,17306,27,SouthwarkVauxhall_Lambeth,less_Lambeth
+Wandsworth,Battersea,1760,9618,10560,12150,8,SouthwarkVauxhall,dirty_none
+Wandsworth,Wandsworth,1522,9173,9611,10306,9,SouthwarkVauxhall,dirty_none
+Wandsworth,Putney,918,5155,5280,5473,10,SouthwarkVauxhall,dirty_none
+Wandsworth,Streatham,1419,8985,9023,9081,30,Lambeth,all
+Camberwell,Dulwich,259,1632,1632,1632,31,Lambeth,all
+Camberwell,Camberwell,2851,16932,17742,18921,11,SouthwarkVauxhall,dirty_none
+Camberwell,Peckham,3457,17809,19444,22182,12,SouthwarkVauxhall,dirty_none
+Camberwell,"St. George, Camberwell",2845,14578,15849,17138,28,SouthwarkVauxhall_Lambeth,less_Lambeth
+Rotherhithe,Rotherhithe,2792,16949,17805,19171,7,SouthwarkVauxhall,dirty_none
+Totals,,72344,463008,482435,508024,,,
+#Comments T. Coleman 2/2019,,,,,,,,
+#Calculated total should match Totals,,"72,344","463,008","482,435","508,024",,,
+#Check,,ok,ok,ok,ok,,,

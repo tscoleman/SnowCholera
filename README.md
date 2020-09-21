@@ -1,9 +1,24 @@
 # SnowCholera
-Data and code for analyzing John Snow's "South London" cholera data
+Data and code for analyzing John Snow's "South London" cholera data from 1854
 
-See my John Snow Project website: http://www.hilerun.org/econ/papers/snow for more detailed explanation of data and scripts
+**New Working Paper** (Sep 2020) re-analyzing Snow's south London data: https://papers.ssrn.com/abstract=3696028
+The following updates are for this working paper:
+1. RStudio notebook(s)
+  + Snow_ReAnalyzed1.Rmd - master that reads in data and runs all the regressions used in the paper
+    + This notebook runs, but it is a very rough draft and need more documentation, clean-up, etc. 
+  + Snow_ReadData.Rmd - subsidiary workbook to read data. Called by the above
+  + Snow_PlotFns.r - plot functions called by the above
+2. Data
+  + Snow1855_TableVIII.csv - deaths by sub-district, assigned to water supplier, for first 7 weeks ending 26th August 1854
+  + Snow1855_TableIX.csv - Snow's comparison of mortality rates for Southwark customers vs Lambeth customers
+  + Snow1855_TableXII.csv - deaths by sub-district (not assigned to water supplier) for 1849 and 1854 epidemics
+  + Snow1856_TableI.csv - (actually Tables I & II combined, so showing all 32 sub-districts) - deaths and population assigned to water supplier, by *sub-district*, for first 7 weeks ending 26th August 1854 (cross-checks with 1855 Table VIII)
+  + Snow1856_TableV.csv - deaths and population assigned to water supplier, by *District*, for the whole of the 1854 epidemic (cross-checks with 1855 Table XII)
+  + Snow1856_TableVI.csv - deaths by sub-district (not assigned to water supplier) for 1854 epidemic, with Snow's population-weighted predicted mortality
+  + Simon1856_TableII.csv - deaths and population by _district_, including population estimates 1849 and 1854
+  + Simon1856_TableIII_pop.csv - population by _subdistrict_, including estimates for 1849 and 1854. 
 
-**Working paper** with discussion of Snow, the data, and the statistics, on SSRN (long, roughly 90 pages): https://papers.ssrn.com/abstract=3262234
+**Older Working Paper** with discussion of Snow, the data, and the statistics, on SSRN (long, roughly 90 pages): https://papers.ssrn.com/abstract=3262234
 
 **Data** (more detailed explanation at http://www.hilerun.org/econ/papers/snow)
 
