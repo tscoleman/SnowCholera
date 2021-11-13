@@ -187,7 +187,7 @@ tableix
 
 The difference in mortality between customers supplied by Southwark & Vauxhall versus the Lambeth Company is dramatic: `r tableix[1,4]` versus `r tableix[2,4]`, a ratio of `r round((tableix[1,3]/tableix[1,2]) / (tableix[2,3]/tableix[2,2]) ,2) `-times.
 
-There is a fundamental problem with this comparison, noted by contemporaries such as Edmund Parkes and no doubt recognized by Snow: Figure IX covers all the South London subdistricts, both those jointly supplied _and_ those supplied by one company alone. The attached figure shows the subdistricts. The randomization is within the jointly supplied subdistricts only. 
+There is a fundamental problem with this comparison, noted by contemporaries such as Edmund Parkes and no doubt recognized by Snow: Figure IX covers all the South London subdistricts, both those jointly supplied _and_ those supplied by one company alone. The `r tableix[1,3]` deaths for the Southwark and Vauxhall company includes all customers across all subdistricts. The attached figure shows the subdistricts. The randomization is within the jointly supplied subdistricts only, and we should restrict the comparision to those subdistricts. 
 
 Non-mixed subdistricts might differ and could in principle act as confounders to produce the observed difference in mortality. The DiD above shows that Southwark & Vauxhall-only subdistricts did not differ substantially in 1849, making such confounding unlikely, but with the data Snow had in 1855 it is not possible to rule out such confounding. 
 
