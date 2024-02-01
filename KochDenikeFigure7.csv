@@ -1,0 +1,36 @@
+﻿"Koch, Thomas, and Kenneth Denike. 2006. “Rethinking John Snow’s South London Study: A Bayesian Evaluation and Recalculation.” Social Science & Medicine 63 (1): 271–83. https://doi.org/10.1016/j.socscimed.2005.12.006.",,,,,,,,
+"Figure 7 Comparison of mortality ratios based on observed deaths, Snow’s model, and the EBE approach",,,,,,,,
+"Transcribed by Thomas Coleman, University of Chicago Harris School of Public Policy",,,"Deaths per 10,000",,,Bayes Deaths,,
+District,Sub-District,Deaths,Registrar,Snow predicted,Bayes predicted,Southwark&Vauxhall,Lambeth,Both
+district,subdistrict,deaths1854,rate_registrar,rate_snowpred,rate_KDpred,deaths_southwarkKDpred,deaths_lambethKDpred,deaths_bothKDpred
+"St. Saviour, S.","Christchurch, Southwark",113,71,51,90.46,69.58,76.51,146.08
+"St. Saviour, S.","St. Saviour, Southwark",378,192,153,229.27,389.95,5.19,395.14
+St. Olave,"St. Olave, Southwark",161,201,160,170.28,148.91,0,148.91
+St. Olave,"St. John, Horsleydown",152,134,160,170.28,159.38,0,159.38
+Bermondsey,"St. James, Bermondsey",362,192,156,158.55,377.77,0.62,378.38
+Bermondsey,St. Mary Magdalen,247,177,160,163.02,281.34,0,281.34
+Bermondsey,Leather Market,237,155,150,151.87,228.28,0.97,229.25
+"St. George, S.",Kent Road,177,98,128,147.41,226.15,18.94,245.09
+"St. George, S.",Borough Road,271,171,103,122.77,160.03,31.61,191.64
+"St. George, S.",London Road,95,53,54,73.7,51.43,54.47,105.9
+Newington,"Trinity, Newington",211,101,100,99.42,167.33,16.62,183.95
+Newington,"St. Peter, Walworth",391,131,103,102.82,235.74,21.3,257.03
+Newington,"St. Mary, Newington",92,66,74,71.05,49.26,10.89,60.16
+Lambeth,Waterloo Road (1st),59,42,57,39.72,39.12,22.4,61.51
+Lambeth,Waterloo Road (2nd),118,64,75,52.06,79.06,23.51,102.57
+Lambeth,Lambeth Church (1st),49,27,49,33.76,34.32,29.79,64.11
+Lambeth,Lambeth Church (2nd),195,73,71,48.89,86.74,30.06,116.8
+Lambeth,Kennington (1st),305,126,141,96.85,173.92,5.08,179
+Lambeth,Kennington (2nd),143,75,105,72.15,86.81,10.54,97.35
+Lambeth,Brixton,48,33,50,34.35,21.19,17.55,38.74
+Lambeth,Norwood,10,25,27,18.76,0,2,2
+Wandsworth,Clapham,167,103,157,164.37,112.78,0.32,113.1
+Wandsworth,Battersea,171,162,154,161.12,104.91,0.66,105.57
+Wandsworth,Wandsworth,59,61,148,153.7,15.16,0.22,15.39
+Wandsworth,Putney,9,17,160,0.02,1.24,0,1.24
+Wandsworth,Streatham,15,17,27,23.8,0,7.72,7.72
+Camberwell,Dulwich,0,0,27,36,0,0.09,0.09
+Camberwell,Camberwell,242,136,151,163.68,157.71,2.33,160.04
+Camberwell,Peckham,175,90,151,163.42,93.84,1.43,95.27
+Camberwell,"St. George, Camberwell",132,83,86,96.53,74.12,19.83,93.95
+Rotherhithe,Rotherhithe,283,159,160,158.39,193.52,0,193.52

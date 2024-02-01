@@ -1,0 +1,16 @@
+﻿"John Simon et al. 1856, ""Report on the last two cholera-epidemics of London, as affected by the consumption of impure water""",,,
+"Table III, subdistrict population in streets with no death, reported by district rather than subdistrict",,,
+"Transcribed by Thomas Coleman, University of Chicago Harris School of Public Policy",,,
+"Houses, Population, Water-Supply, and Cholera-Deaths, in the Thirty-one Surrey Sub-districts of London",,,
+Registration Districts,,Number of inhabited houses in 1851,
+,,Number of inhabited houses in 1851,Estimated population in 1849
+district,districtID,lambeth_misspop,southwark_misspop
+"St. Saviour, Southwark",1,69,365
+"St. Olave, Southwark",2,0,533
+Bermondsey,3,0,3450
+"St. George, Southwark",4,1546,600
+Newington,5,8953,4551
+Lambeth,6,8663,7711
+Wandsworth,7,122,4386
+Camberwell,8,3985,4600
+Rotherhithe,9,0,2733

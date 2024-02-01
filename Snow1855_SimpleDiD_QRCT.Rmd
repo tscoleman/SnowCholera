@@ -136,7 +136,7 @@ $Rate = \mu + \delta 54*I(54) + \gamma*I(joint) + \beta*I(54)*I(joint)$
 * an interaction for 1854 and joint ($\beta$)
 
 
-The bottom-right corner of the table ($\beta$) shows the effect of treatment, controlled for time (1849 versus 1854) and region ("first 12" versus joint "next 16") effects. The following code produces this table in both level (straight mortality per 10,000) and in logarithmic. For various reasons we often want to use logs, which measures differences in ration terms. (remember that changes in logs is roughly percent change - exp(ch logs) = ratio change)
+The bottom-right corner of the table ($\beta$) shows the effect of treatment, controlled for time (1849 versus 1854) and region ("first 12" versus joint "next 16") effects. The following code produces this table in both level (straight mortality per 10,000) and in logarithmic. For various reasons we often want to use logs, which measures differences in ratio terms. (Remember that changes in logs is roughly percent change: exp(ch logs) = ratio change)
 
 
 ```{r results='asis'}

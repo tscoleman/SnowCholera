@@ -170,16 +170,89 @@ preperrdata <- function(fittedmodel,single = "single",link="log",conf=.95,popula
 }
 
 
+preperrdata54 <- function(fittedmodel,single = "single",link="log",conf=.95,population="population") {       # This is not a good way to do this because I am 
+	                                                  # changing globals from within the function (using <<- 
+	                                                  # instead of <-)
+# Function to prepare the data (error bars) for graphing
+# The 2.5% and 97.5% confidence bands are calculated assuming either Poisson or Negative Binomial
+# The rates are calculated by generating the counts up and down from the "expected" (from the fitted model)
+# This version works on only 1854 (assumes regression for 1854 only)
+
+	# Set the confidence levels (inputting 0.95 means lower leve .025, upper .975, total .05 / .95)
+	xconfidl <- (1-conf)/2
+	xconfidu <- 1-xconfidl
+	expected <- predict(fittedmodel)
+	xlen <- length(expected)
+	xfamily <- family(fittedmodel)$family
+	if (link == "log") {
+		expected <- exp(expected)       # expected values
+	}
+	if (substr(xfamily,1,8) == "gaussian") {   # For OLS "rate" model need to convert from rates to counts
+		expected[1:xlen] <- expected[1:xlen] * x1854[,population]
+	}
+	theta <- fittedmodel$theta
+	x1854$predcount <<- expected[1:xlen]
+	x1854$predrate <<- 10000 * expected[1:xlen] / x1854[,population]
+	if (xfamily == "poisson") {         # Get 95% confidence bands depending on model used (Poiss vs Neg Binom)
+		x1854$limdn <<- 10000 * qpois(xconfidl,lambda=x1854$predcount) / x1854[,population]
+		x1854$limup <<- 10000 * qpois(xconfidu,lambda=x1854$predcount) / x1854[,population]
+	} else if (substr(xfamily,1,8) == "Negative"){
+		x1854$limdn <<- 10000 * qnbinom(xconfidl,size=theta,mu=x1854$predcount) / x1854[,population]
+		x1854$limup <<- 10000 * qnbinom(xconfidu,size=theta,mu=x1854$predcount) / x1854[,population]
+	} else if (substr(xfamily,1,8) == "gaussian"){
+		x3 <- predict(fittedmodel,interval="prediction")   # I think "confidence" is what I want and not "prediction"
+		x1854$limdn <<- x3[1:xlen,2]
+		x1854$limup <<- x3[1:xlen,3]
+		if (link == "log") {    # There is no "link" item for lm, so the only way I can tell if this model is run
+		                      # in level or log form is to look at the predicted, and if it is negative presume it's in logs
+			x1854$limdn <<- exp(x1854$limdn)
+			x1854$limup <<- exp(x1854$limup)
+		}
+		x1854$limdn <<- 10000 * x1854$limdn
+		x1854$limup <<- 10000 * x1854$limup
+	}
+
+
+	# Now adjust the 1854 predicted counts (and rates) for the time and treatment fixed effects -
+	# effectively netting out the 1854 effect and making it 1849-equivalent
+	# Adjust for the year effect only - this should make 1849 & 1854 comparable net of time effect
+	if (link == "log") {
+		x1854$rateadjyr <<- 10000 * (x1854$deaths) / x1854[,population]
+	} else {
+		x1854$rateadjyr <<- x1854$rate
+	}
+	# Adjust the 1854 actual for the estimated Treatment Effect and the estimated Year Effect
+	if (link == "log") {
+		x1854$rateadj <<- 10000 * (x1854$deaths) / x1854[,population]
+	} else {
+		x1854$rateadj <<- x1854$rate + x54
+	}
+
+	return(xfamily)
+}
+
+
+
 # "Worker" function to plot mean, predicted, and error bars
-plot2_worker <- function(yseq, xmean,xlimdn,xpred,xlimup,title,legposition="bottomright") {            
+plot2_worker <- function(yseq, xmean,xlimdn,xpred,xlimup,title,legposition="bottomright",xlim="empty",ylim="empty",ylab="sub-district", xlab="Mortality rate actual (red filled) vs predicted (empty circle)") {            
+	if (length(xlim) == 1 ) {    # Not a perfect way to check, but works for now
+		if (xlim == "empty") {
+			xlim=range(c(xmean, xpred,xlimdn,xlimup))
+		}
+	}
+	if (length(ylim) == 1 ) {
+		if (ylim == "empty") {
+			ylim=rev(range(yseq))
+		}
+	}
 	xplot <- plot(xmean, yseq,
-	    xlim=range(c(xmean, xpred,xlimdn,xlimup)),
-	    ylim=rev(range(yseq)), col="red",
-	    main=title,xlab="Mortality rate actual (red filled) vs predicted (empty circle)",ylab="sub-district",
+	    xlim=xlim,
+	    ylim=ylim, col="red",
+	    main=title,xlab=xlab,ylab=ylab,
 	    pch=19)
 	lines(xpred, yseq, type="p",
-	    xlim=range(c(xmean, xpred,xlimdn,xlimup)),
-	    ylim=rev(range(yseq)), 
+	    xlim=xlim,
+	    ylim=ylim, 
 	    pch=1)
 	# horizontal error bars
 	xplot <- arrows(xlimdn, yseq, xlimup, yseq, length=0.05, angle=90, code=3,lty=3)
@@ -187,10 +260,38 @@ plot2_worker <- function(yseq, xmean,xlimdn,xpred,xlimup,title,legposition="bott
 #	xplot <- legend(legposition, c("1849 red circle", "1854 blue triangle"), col = c(2, 4),
 #       text.col = c("red","blue"), lty = c(0, 0), pch = c(19, 17),
 #       merge = TRUE,bty="o",bg="white")    # The bty="o" should overwrite the background
-
-
 	xplot
 }
+
+
+
+# "Worker" function to plot mean, predicted, and error bars, based on "plot2_worker" but with axes reversed
+plotActvPred_worker <- function(xvar,ymean,ylimdn,ypred,ylimup,title,legposition="bottomright",xlim="empty",ylim="empty",ylab="sub-district", xlab="Mortality rate actual (red filled) vs predicted (empty circle)") {            
+	if (length(xlim) == 1 ) {    # Not a perfect way to check, but works for now
+		if (xlim == "empty") {
+			xlim=range(c(xmean, xpred,xlimdn,xlimup))
+		}
+	}
+	if (length(ylim) == 1 ) {
+		if (ylim == "empty") {
+			ylim=rev(range(yseq))
+		}
+	}
+	xplot <- plot(xvar, ymean,
+	    xlim=xlim,
+	    ylim=ylim, col="red",
+	    main=title,xlab=xlab,ylab=ylab,
+	    pch=19)
+	lines(xvar, ypred, type="p",
+	    xlim=xlim,
+	    ylim=ylim, 
+	    pch=1)
+	# horizontal error bars
+	xplot <- arrows(xvar, ylimdn, xvar, ylimup, length=0.05, angle=0, code=3,lty=3)
+	xplot
+}
+
+
 # "Cover" function that takes in the dataframe and unpacks
 plot2 <- function(confidata,xsupplier,title,legposition="bottomright") {            
 	xmean <- subset(confidata,supplier==xsupplier)[,"rate"]

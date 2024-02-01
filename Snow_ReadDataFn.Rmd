@@ -1,0 +1,763 @@
+---
+title: "John Snow Project - Reading Snow data, adjusting, and building regression dataframes"
+author: "[Thomas Coleman](http://www.hilerun.org/econ)"
+output: html_notebook
+---
+# New (functional) version for Reading in data from 1855 Table VII, XII; Table 1856 Tables I & II, VI
+
+#### See "Causality in the Time of Cholera" working paper at https://papers.ssrn.com/abstract=3262234 and my [John Snow project website](http://www.hilerun.org/econ/papers/snow)
+
+#### This notebook is licensed under the [BSD 2-Clause License](https://opensource.org/licenses/BSD-2-Clause)
+
+### Introduction
+
+
+For a brief introduction to Snow's work, see:
+
++ **Snow's original 1855 monograph** (it is masterful): Snow, John. 1855. *On the Mode of Communication of Cholera*. 2nd ed. London: John Churchill. http://archive.org/details/b28985266.
++ **The best popular exposition I have found**: Johnson, Steven. 2007. *The Ghost Map: The Story of London’s Most Terrifying Epidemic--and How It Changed Science, Cities, and the Modern World*. Reprint edition. New York: Riverhead Books.
++ **Another good popular version**: Hempel, Sandra. 2007. *The Strange Case of the Broad Street Pump: John Snow and the Mystery of Cholera*. First edition. Berkeley: University of California Press.
++ **Tufte's classic discussion of Snow's mapping** (a topic I don't cover here): Tufte, Edward R. 1997. *Visual Explanations: Images and Quantities, Evidence and Narrative*. 1st edition. Graphics Press.
++ **Biography**: Vinten-Johansen, Peter, Howard Brody, Nigel Paneth, Stephen Rachman, and Michael Russell Rip. 2003. *Cholera, Chloroform and the Science of Medicine: A Life of John Snow*. Oxford; New York: Oxford University Press. Linked on-line resources https://johnsnow.matrix.msu.edu/snowworks.php
+
+
+
+
+### Introduction
+
+This file contains functions for 
+
++ Reading in data from Snow's and Simon's tables
++ Adjusting subdistrict by-supplier data:
+  1) Zero out Lambeth population in S&V-only subdistricts (cf Snow 1856 p 245)
+  2) Increase subdistrict by-supplier population so that the sum of subdistricts within each district match the district totals reported in Simon Table II. (In subdistrict reporting in Simon Table III, houses in streets with no deaths were not allocated by supplier, and the totals for this unassigned population is reported by supplier for each district in Simon Table III)
+  3) Decrease subdistrict population when the by-supplier estimates are larger than Simon' 1854 estimates 
+
++ The following data tables should be read in by the calling script / worksheet
+  + From Snow 1855 "On the mode of communication of cholera"
+    + tableviii <- read.csv(file="Snow1855_TableVIII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+    + tablevii <- read.csv(file="Snow1855_TableVII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+    + tablexii <- read.csv(file="Snow1855_TableXII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+  + From John Snow 1856, "Cholera and the water supply in the south district of London in 1854". These data were copied from the 1936 book "Snow on cholera, being a reprint of two papers" edited by Frost
+    + Table I "Showing the results of the Author's personal Inquiry into Twenty-One Sub-Districts"
+    + Table II "Showing the results of Inquiry made by Mr. Whiting in Eleven Sub-Districts"
+    + My "tableI_1856" combines Snow's Tables I & II)
+    + tableI_1856 <- read.csv(file="Snow1856_TableI.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+    + tableV_1856 <- read.csv(file="Snow1856_TableV.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+    + tableVI_1856 <- read.csv(file="Snow1856_TableVI.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+  + From John Simon "Report on the last two cholera-epidemics of London, as affected by the consumption of impure water"
+    + Population data from Simon's Table III:
+    + tableSimonIII <- read.csv(file="Simon1856_TableIII_pop.csv",header=TRUE, sep=",", skip=5,comment.char="#")
+    + Population by-supplier for "Houses supplied in streets where no death occurred" which reports by *districts* and must be allocated back to subdistricts
+    + tableSimonIII_StNoDeath <- read.csv(file="Simon1856_TableIII_StNoDeath.csv",header=TRUE, sep=",", skip=6,comment.char="#")
+
++ Functions for creating the regression dataframes necessary (plus overdisp_fun)
+  + overdisp_fun(model,type="deviance")
+    + returns xoverdisp,xPseudoRsq,lnRateRsq,RateRsq,RateSD,lnRateSD,BIC
+  + regdata for the DiD comparison of 1855 Table XII data
+    + cr_regdata(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj=3,population_1851=0,tableVIdeaths=0)
+  + Regression data for DiD separating out randomized by-supplier for 1st 7weeks of 1854
+    + cr_regdata_mixedDiD7wks(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj=3,population_1851=0,tableVIdeaths=0)
+    + returns list(regdata_misdDiD7wks, regdata_mixedDiD7wks_xOther)
+  + Regression data for 1855 by-supplier data from Table VIII (1st 7 weeks)
+    + cr_regdata1855VIII(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj=3,population_1851=0,tableVIdeaths=0)
+    + returns list(regdata1855VIIIboth, regdata1855VIIIjoint)
+  + Regression data for combined DiD & Randomization
+    + cr_regdata_mixedDiD4wks(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj=3,population_1851=0,tableVIdeaths=0)
+    + returns list(regdata_mixedDiD1st4wks,regdata_mixedDiD1st4wks_xOther)
+  + Creates matrix comparing different sums (for "first 12" and "next 16") of by-supplier population for 1854 & 1851
+    + cr_popcom(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath)
+    + returns dataframe 4x6: 4 rows for population_adj = 0, 1, 2, 3; 3 cols for S&V, Lambeth, Combined (1854); 3 cols for S&V, Lambeth, Combined (1851)
+  + Create combined (stacked) data for all the regressions
+    + cr_data_combined(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj=3,population_1851=0,tableVIdeaths=0)
+    + Used within the above functions which then extract out the appropriate data
+
+
+
+##### June 2023, modified to use alternate sub-district population measures: #####
++ Based on variable (flag) "population_adj" which is set in the "calling file" (NB - this is not a robust method)
+  + = 0: no adjustment to subdistrict, use original population
+  + = 1: zero out Lambeth in Southwark-only subdistricts
+  + = 2: adjust upwards so subdistrict sums match district reports
+  + = 3: adjust by-supplier subdistrict downwards if combined SV + Lambeth is greater than 1854
+  + = 4: adjust subdistrict population upwards if combined SV + Lambeth is greater than 1854. OVERWRITE POP1854!!! 
+  +  If not set, then use 3
+
++ Based on variable (flag) "population_1851" which is set in the "calling file" (NB - this is not a robust method)
+  + = 0: use 1849 & 1854 population
+  + = 1: use 1851 population (rather than 1849 & 1854)
+  +  If not set, then use 0
+
+  
+
+```{r message=FALSE, results='hide'}
+# Copyright (c) 2023, Thomas Coleman
+#
+#  -------  Licensed under BSD 2-Clause "Simplified" License  -------
+#
+# Functions for read data. 
+# See also "Causality in the Time of Cholera: John Snow as a Prototype 
+# for Causal Inference (Working Paper)" available at SSRN: https://papers.ssrn.com/abstract=3262234
+
+```
+
+
+  
+
+```{r message=FALSE, results='hide'}
+# Function for calculating statistics associated with overdispersion
+
+
+# Modified from excellent site http://bbolker.github.io/mixedmodels-misc/glmmFAQ.html
+# Function for calculating overdispersion of a model.
+# I've modified to do either Pearson residuals or Deviance residuals.
+# I thought deviance residuals were the better
+
+overdisp_fun <- function(model,type="deviance",nulldeviance=Inf) {
+  # Works for type="pearson" or "deviance"
+  # I need to pass in the null deviance for linear models because the linear models are run 
+  #   without a constant. This null deviance should be the residual deviance from a model run with
+  #   just population (link="identity") and no constant
+    xn <- nobs(model)
+    rdf <- df.residual(model)
+    rp <- residuals(model,type=type)
+    resid.chisq <- sum(rp^2)   # This is the "Residual Deviance"
+    prat <- resid.chisq/rdf
+    pval <- pchisq(resid.chisq, df=rdf, lower.tail=FALSE)
+    if (type == "deviance") {
+      xoverdisp <- c(ResidDev=resid.chisq,rdf=rdf,ratio_chisqdf=prat,p_ResidDev=pval)
+    }
+    else {
+      xoverdisp <- c(pearson=resid.chisq,rdf=rdf,ratio_chisqdf=prat,p=pval)
+    }
+    xlink <- model$family[2]  # will be "identity" for a linear model
+  # Now calculate the pseudo-Rsq and the rate Rsq
+    if (class(model)[1] == "glmerMod") {
+      xPseudoRsq <- 0   
+      # For the life of me I cannot figure out how to get the Null Deviance for the lmer model (RE model)
+      # The lrtest does not work, and in any case gives the wrong answer for glm models (it fits the "restricted
+      # mean-only model without the offset - really stupid)
+      # The residual deviance is easy - that is above (resid.chisq)
+    }
+    else {
+      xPseudoRsq <- 1 - (model$deviance/model$null.deviance)
+      if (xlink == "identity") {  # if linear model then alternate calculation for pseudo-Rsq
+      	xPseudoRsq <- 1 - (model$deviance/nulldeviance)
+      }
+    }
+    # Data fram from model. 1st element will be counts, last log(offset)
+    x1 <- model.frame(model)
+    xlcount <- (x1[,1])
+    x2 <- dim(x1)
+    xoffset <- x1[,x2[2]]
+    xpred <- predict(model)
+    xrate_act <- xlcount / exp(xoffset)
+    xrate_pred <- exp(xpred) / exp(xoffset)
+    if (xlink == "identity") {  # if linear model then alternate calculation for rates and log rates
+      xpop <- x1[,2]     # for linear model, population will be in 2nd positio
+      xrate_act <- xlcount / xpop
+      xrate_pred <- xpred / xpop
+    }
+    xRsq <- (cor(xrate_pred,xrate_act))^2
+    xAdjRsq <- 1 - (1-xRsq)*(xn-1)/(rdf-1)
+    xsdrate <- 10000 * sd(xrate_act)
+    xlrate_act <- log(xrate_act)
+    xlrate_pred <- log(xrate_pred)
+    xlnRsq <- (cor(xlrate_pred,xlrate_act))^2
+    xsdlrate <- sd(xlrate_act)
+    #x1 <- list(xoverdisp,xpseudoRsq)
+    xoverdisp <- append(xoverdisp,c(PseudoRsq=xPseudoRsq,lnRateRsq=xlnRsq,RateRsq=xRsq,AdjRateRsq=xAdjRsq,RateSD=xsdrate,lnRateSD=xsdlrate,BIC=BIC(model),AIC=AIC(model),logLik=logLik(model)))
+    xoverdisp
+}
+
+
+overdisp_fun_old <- function(model,type="deviance") {
+  # Works for type="pearson" or "deviance"
+    rdf <- df.residual(model)
+    rp <- residuals(model,type=type)
+    resid.chisq <- sum(rp^2)   # This is the "Residual Deviance"
+    prat <- resid.chisq/rdf
+    pval <- pchisq(resid.chisq, df=rdf, lower.tail=FALSE)
+    if (type == "deviance") {
+      xoverdisp <- c(ResidDev=resid.chisq,rdf=rdf,ratio_chisqdf=prat,p_ResidDev=pval)
+    }
+    else {
+      xoverdisp <- c(pearson=resid.chisq,rdf=rdf,ratio_chisqdf=prat,p=pval)
+    }
+  # Now calculate the pseudo-Rsq and the rate Rsq
+    if (class(model)[1] == "glmerMod") {
+      xPseudoRsq <- 0   
+      # For the life of me I cannot figure out how to get the Null Deviance for the lmer model (RE model)
+      # The lrtest does not work, and in any case gives the wrong answer for glm models (it fits the "restricted
+      # mean-only model without the offset - really stupid)
+      # The residual deviance is easy - that is above (resid.chisq)
+    }
+    else {
+      xPseudoRsq <- 1 - (model$deviance/model$null.deviance)
+    }
+    # Data fram from model. 1st element will be counts, last log(offset)
+    x1 <- model.frame(model)
+    xlcount <- (x1[,1])
+    x2 <- dim(x1)
+    xoffset <- x1[,x2[2]]
+    xpred <- predict(model)
+    xlrate_act <- xlcount / exp(xoffset)
+    xlrate_pred <- exp(xpred) / exp(xoffset)
+    xRsq <- (cor(xlrate_pred,xlrate_act))^2
+    xsdrate <- 10000 * sd(xlrate_act)
+    xlrate_act <- log(xlcount) - xoffset
+    xlrate_pred <- xpred - xoffset
+    xlnRsq <- (cor(xlrate_pred,xlrate_act))^2
+    xsdlrate <- sd(xlrate_act)
+    #x1 <- list(xoverdisp,xpseudoRsq)
+    xoverdisp <- append(xoverdisp,c(PseudoRsq=xPseudoRsq,lnRateRsq=xlnRsq,RateRsq=xRsq,RateSD=xsdrate,lnRateSD=xsdlrate,BIC=BIC(model),AIC=AIC(model),logLik=logLik(model)))
+    xoverdisp
+}
+
+
+
+
+
+# Read in the data from Snow 1855 "On the mode of communication of cholera"
+#tableviii <- read.csv(file="Snow1855_TableVIII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+#tablevii <- read.csv(file="Snow1855_TableVII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+#tablexii <- read.csv(file="Snow1855_TableXII.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+
+# Read in the data from John Snow 1856, "Cholera and the water supply in the south district of London in 1854", 
+#   These data were copied from the 1936 book "Snow on cholera, being a reprint of two papers" edited by Frost
+# Table V by District (for running Poisson & Neg Binomial count regressions)
+# Table VI by sub-district (for running Koch & Denike's tests)
+
+# Table I "Showing the results of the Author's personal Inquiry into Twenty-One Sub-Districts"
+# Table II "Showing the results of Inquiry made by Mr. Whiting in Eleven Sub-Districts"
+# (My "tableI_1856" combines Snow's Tables I & II)
+
+#tableI_1856 <- read.csv(file="Snow1856_TableI.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+
+#tableV_1856 <- read.csv(file="Snow1856_TableV.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+#tableVI_1856 <- read.csv(file="Snow1856_TableVI.csv", header=TRUE, sep=",", skip=5,comment.char="#")
+
+#tableSimonIII <- read.csv(file="Simon1856_TableIII_pop.csv",header=TRUE, sep=",", skip=5,comment.char="#")
+
+#tableSimonIII_StNoDeath <- read.csv(file="Simon1856_TableIII_StNoDeath.csv",header=TRUE, sep=",", skip=6,comment.char="#")
+
+```
+
+
+
+#### Creating the Data
+
+We must stack the data from Snow 1855 Tables VIII and XII and create appropriate indicator variables. Here we also need to merge in the population estimates from Snow 1856 Tables I & II. 
+
+Note a small but important issue: Snow's 1856 Table VI updates the 1854 deaths by subdistrict slightly relative to 1855 Table XII - 1856 Table VI covers 17 weeks from 8 July 1854 to 4 November 1854, while Table XII covers 15 weeks (ending 21 October 1854). The analysis here uses the 15-week (1855 Table XII) death counts. The alternative would be to use the 1856 Table VI numbers in all analysis, or the 1855 Table XII for the single & "two Lambeth" analysis (the 1855 anlaysis) and the 1856 Table VI update for the fractional (proportional) effect analysis.
+
+Note the following important adjustments to the by-supplier population from 1856 Table VI:
+
+
+1) Adjusting up subdistrict population by supplier to match the district-level sums
+  + The sum of subdistricts from Tables I, II, III, and VI (to the district level) is less than the reported district population from Table V
+  + I simply adjust up each subdistrict by the ratio of (district reported / district summed from subdistricts)
+  + This applies the same adjustment within each district x Supplier pair (9 districts and two suppliers) 
+2) Zeroing Lambeth population for "First 12" Southwark-only subdistricts
+3) Adjusting downwards the Southwark & Vauxhall and Lambeth populations if combined is greater than 1854 population
+  + Take the by-supplier population after adjustments (1) and (2), sum to a "Combined"
+  + If this "Combined" is greater than 1854 population, adjust down each of Southwark & Vauxhal and Lambeth by the ratio of (Combined / Pop 1854)
+4) Calculate "other" as residual of "Pop1854" less "Combined"
+
+The relevant sections from Snow's 1856 (pp 245-246) are 
+
+> the subdistricts of St. Saviour's, Southwark, Leather Market, Bermondsey, Battersea, and Peckham, have been represented to contain a few houses supplied by the Lambeth Company, although they do not contain any.
+
+> The numbers which are stated to represent the houses supplied by each water company in each subdistrict are found on adding up the tables not to do so, but to represent the number of houses, minus those situated in streets in which no death occurred; the latter being placed all together at the end of each group of subdistricts which constitutes a district. \ldots The number of houses in these exempted streets is about one-ninth of the whole. 
+
+```{r}
+# Adjust the subdistrict population up by the fraction of reported subdistrict population 
+# (from Table V) versus summed subdistrict population (summed from Table I, which is the same as Table VI)
+# Sum the subdsitricts using dplyr "group_by" and "summarize"
+
+cr_data_internal <- function(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj=3,population_1851=0,tableVIdeaths=0) {
+  # returns list(xdata_combined,xdata_combined_1st4)
+  xx1 <- tableI_1856[1:32,] %>%
+    group_by(district) %>% 
+    summarise(across(c(pop_southwark,pop_lambeth),sum)) 
+  
+  # Join subdistrict data for first 7 weeks (tableI_1856) with overall 1849 & 1854 deaths from Table XII
+  xx2 <- inner_join(tableI_1856[tableI_1856$district != "na",], tablexii[tablexii$district != "na",c("subDistrict","deaths1849","deaths1854")], by = "subDistrict")
+  # Check if we want to use deaths from the 1856 Table VI
+  if(tableVIdeaths == 1) {
+    x1 <- tableVI_1856$deaths_1854[match(tablexii$subDistrict,tableVI_1856$subDistrict)]  # deaths 1854 from Table VI in order of tablexii
+    x2 <- x1[!is.na(x1)]
+    xx2$deaths1854[xx2$subDistrict != "Sydenham"] <- x2 # 1856 Table VI does not have Sydenham
+  }
+  # Join the elevation
+  xx2 <- left_join(xx2,tableGROElevation[,c("subDistrict","elevation")],by='subDistrict')
+  # Join the first 4 weeks from 1855 Table VII
+  xx2 <- inner_join(xx2,tablevii[,c("deathsOverall","deathsSouthwark","deathsLambeth","deathsPump","deathThames","deathsUnascertained","subDistrict")],by="subDistrict",suffix=c(".7wks",".first4wks"))
+  # Put in the 1849 & 1854 population estimates from Simon 1856 Table III
+  xx2 <- left_join(xx2, tableSimonIII[tableSimonIII$district != "Total",c("subDistrict","pop1849","pop1854")], by = "subDistrict")
+  # Join the subdistricts (Table I) with reported districts (Table V)
+  xx3 <- left_join(xx2, tableV_1856[!is.na(tableV_1856$districtID),c("district","pop_southwark","pop_lambeth")], by = "district",suffix=c("",".district"))
+  # Join the district "missing population" by supplier - the population in "Streets where no death occurred" by district
+  xx3 <- left_join(xx3,tableSimonIII_StNoDeath[,c("district","lambeth_misspop","southwark_misspop")], by = "district")
+  # And join with summed districts (from xx1 just above)
+  xx4 <- inner_join(xx3, xx1, by = "district",suffix=c(".x",".sumdistrict"))
+  
+  
+  # Finally, adjust population 
+  # Modified 15-jun-2023 to adjust pop_southwark_adj as well as perc_southwark
+  xpop <- xx4$pop1854
+  if(population_1851 == 1) {
+    xpop <- xx4$pop1851
+  }
+  xpop_southwark_0 <- xx4$pop_southwark.x
+  xpop_lambeth_0 <- xx4$pop_lambeth.x
+  xpop_combined_0 <- xpop_southwark_0 + xpop_lambeth_0
+  # "perc_0" is no adjustment to by-supplier population
+  xx4$perc_southwark_0 <- xpop_southwark_0 / xpop
+  xx4$perc_lambeth_0 <- xpop_lambeth_0 / xpop
+  # Set the Lambeth population for the Southwark-only "First 12" subdistricts to zero - it should be zero but is not in Simon's tables
+  xpop_southwark_1 <- xpop_southwark_0
+  xpop_lambeth_1 <- xpop_lambeth_0
+  xpop_lambeth_1[xx4$supplier == "SouthwarkVauxhall"] = 0
+  # "perc_1" sets Lambeth population in Southwark-only subdistricts to zero
+  xx4$perc_southwark_1 <- xpop_southwark_1 / xpop
+  xx4$perc_lambeth_1 <- xpop_lambeth_1 / xpop
+  xpop_combined_1 <- xpop_southwark_1 + xpop_lambeth_1
+  # This adjusts up by-supplier subdistrict population based on the "Houses supplied in streets where no death occurred" 
+  #    from Simon Table III
+  #xpop_southwark_2 <- (xpop_southwark_1*(xx4$pop_southwark.district/xx4$pop_southwark.sumdistrict))
+  xpop_southwark_2 <- xpop_southwark_1*(1 + xx4$southwark_misspop/xx4$pop_southwark.sumdistrict)
+     # Use "pmax" for the summed lambeth to replace zeros with 1s so they do not produce NAN
+  #xpop_lambeth_2 <- xpop_lambeth_1*(xx4$pop_lambeth.district/pmax(1,xx4$pop_lambeth.sumdistrict))
+  xpop_lambeth_2 <- xpop_lambeth_1*(1 + xx4$lambeth_misspop/pmax(1,xx4$pop_lambeth.sumdistrict))
+  xpop_combined_2 <- xpop_southwark_1 + xpop_lambeth_1
+  # "perc_2" is subdistrict populations are adjusted up so summed subdistricts match districts
+  # But for many subdistricts (and districts) this population is now higher than "estimated 1854)
+  # So create two new estimates
+  #   _3 adjusts subdistrict by-supplier down to match subdistrict 1854 estimates
+  #   _4 adjusts subdistrict 1854 upwards to match by-supplier subdistrict
+  xx4$perc_southwark_2 <- xpop_southwark_2 / xpop
+  xx4$perc_lambeth_2 <- xpop_lambeth_2 / xpop
+  xpop_combined_2 <- xpop_southwark_2 + xpop_lambeth_2
+  # "perc_3" is The supplier-specific population adjusted back down , as percentage of total (1854) population
+  # Reduce combined population to maximum of 1854 pop, then adjust downward the S&V and Lambeth pop
+  xpop_combined_3 <- pmin(xpop,xpop_combined_2)
+  xx <- xpop_combined_3 / xpop_combined_2   # ratio of excess population
+  xpop_southwark_3 <- xpop_southwark_2 * xx
+  xpop_lambeth_3 <- xpop_lambeth_2 * xx
+  xx4$perc_southwark_3 <- (xpop_southwark_3/xpop) 
+  xx4$perc_lambeth_3 <- (xpop_lambeth_3/xpop)
+  # Increase overall as appropriate. NB: THIS MAY BE DANGEROUS
+  xpop_combined_4 <- xpop_combined_2
+  xpop_total <- pmax(xpop,xpop_combined_2)
+  xpop_southwark_4 <- xpop_southwark_2
+  xpop_lambeth_4 <- xpop_lambeth_2
+  xx4$perc_southwark_4 <- (xpop_southwark_4/xpop_total) 
+  xx4$perc_lambeth_4 <- (xpop_lambeth_4/xpop_total)
+  
+  
+  # Changing here will set to different population adjustments:
+  #  _0: no adjustment
+  #  _1: zero out Lambeth in Southwark-only subdistricts
+  #  _2: adjust upwards so subdistrict sums match district reports
+  #  _3: adjust by-supplier subdistrict downwards if combined SV + Lambeth is greater than 1854
+  #  _4: adjust subdistrict total upwards if combined SV + Lambeth is greater than 1854. OVERWRITE POP1854!!!
+  #  _3 is the default if flag population_adj does not exist
+  xx4$perc_southwark_adj <- xx4$perc_southwark_3
+  xx4$perc_lambeth_adj <- xx4$perc_lambeth_3
+  xx4$perc_combined_adj <- (xpop_combined_3 / xpop)
+  xx4$pop_southwark_adj <- xpop_southwark_3
+  xx4$pop_lambeth_adj <- xpop_lambeth_3
+  xx4$pop_combined_adj <- xpop_combined_3
+  if(population_adj == 0) {
+    xx4$perc_southwark_adj <- xx4$perc_southwark_0
+    xx4$perc_lambeth_adj <- xx4$perc_lambeth_0
+    xx4$perc_combined_adj <- (xpop_combined_0 / xpop)
+    xx4$pop_southwark_adj <- xpop_southwark_0
+    xx4$pop_lambeth_adj <- xpop_lambeth_0
+    xx4$pop_combined_adj <- xpop_combined_0
+  }
+  if(population_adj == 1) {
+    xx4$perc_southwark_adj <- xx4$perc_southwark_1
+    xx4$perc_lambeth_adj <- xx4$perc_lambeth_1
+    xx4$perc_combined_adj <- (xpop_combined_1 / xpop)
+    xx4$pop_southwark_adj <- xpop_southwark_1
+    xx4$pop_lambeth_adj <- xpop_lambeth_1
+    xx4$pop_combined_adj <- xpop_combined_1
+  }
+  if(population_adj == 2) {
+    xx4$perc_southwark_adj <- xx4$perc_southwark_2
+    xx4$perc_lambeth_adj <- xx4$perc_lambeth_2
+    xx4$perc_combined_adj <- (xpop_combined_2 / xpop)
+    xx4$pop_southwark_adj <- xpop_southwark_2
+    xx4$pop_lambeth_adj <- xpop_lambeth_2
+    xx4$pop_combined_adj <- xpop_combined_2
+  }
+  if(population_adj == 4) {
+    xx4$perc_southwark_adj <- xx4$perc_southwark_4
+    xx4$perc_lambeth_adj <- xx4$perc_lambeth_4
+    xx4$pop1854 <- xpop_total     # NB: OVERWRITES POP1854!!!
+    xx4$perc_combined_adj <- (xpop_combined_4 / xx4$pop1854)
+    xx4$pop_southwark_adj <- xpop_southwark_4
+    xx4$pop_lambeth_adj <- xpop_lambeth_4
+    xx4$pop_combined_adj <- xpop_combined_4
+  }
+  # by default (and if population_adj does not exist) do _3
+  xx4$perc_other_adj <- 1 - xx4$perc_combined_adj
+  xx4$pop_other_adj <- xpop - xx4$pop_combined_adj
+  
+  
+  
+  
+  
+
+
+  #x1 <- subset(xx4,supplier == "SouthwarkVauxhall" | supplier == "SouthwarkVauxhall_Lambeth")
+  x1 <- xx4
+  x1849 <- x1[c("subDistrict","district","pop1851","supplier","lambethdegree")]
+  # Rename "pop1849" to "population"
+  x1849$population <- x1$pop1849
+  # Use 1851 population if flag set
+  #   Based on variable (flag) "population_1851" which is set in the "calling file" (NB - this is not a robust method)
+  #     = 0: use 1849 & 1854 population
+  #     = 1: use 1851 population (rather than 1849 & 1854)
+  #  If not set, then use 0
+  if(population_1851 == 1) {
+    x1849$population <- x1$pop1851
+  }
+  #names(x1849)[names(x1849) == "pop1849"] <- "population"
+  
+  
+  x1849$deaths <- x1$deaths1849
+  x1849$rate <- 10000 * x1$deaths1849 / x1849$population
+  x1849$seq <- c(seq(1,length(x1849$deaths)))
+  # Create a dummy variable for Thames deaths 
+  x1849$ThamesDummy <- x1$deathThames.7wks > 5
+  #x1849$dum1854 <- 0
+  x2 <- dim(x1849)[1]
+  xyear <- factor(c(rep(1849,x2),rep(1854,x2)))
+  x1849$year <- xyear[1:x2]
+  x1854 <- x1849
+  x1854$population <- x1$pop1854
+  # Use 1851 population if flag set
+  if(population_1851 == 1) {
+    x1854$population <- x1$pop1851
+  }
+  #x1849$lambethdegree <- "dirty"
+  x1854$deaths <- x1$deaths1854
+  x1854$rate <- 10000 * x1$deaths1854 / x1854$population
+  x1854$seq <- c(seq(1,length(x1849$deaths)))
+  #x1854$dum1854 <- 1
+  x1854$year <- xyear[(x2+1):(2*x2)]
+  
+  x1849$subDistrict_1854 <- "a_none"
+  x1854$subDistrict_1854 <- x1854$subDistrict
+  x1849$subDistrict_1849 <- x1849$subDistrict
+  x1854$subDistrict_1849 <- "a_none"
+
+  # Put in percentage by supplier. For 1854 this is the calculated 1854 percentage, for 1849 use the same value  
+  x1849$perc_other <- x1$perc_other_adj
+  x1854$perc_other <- x1$perc_other_adj
+  x1849$perc_lambeth <- x1$perc_lambeth_adj
+  x1854$perc_lambeth <- x1$perc_lambeth_adj
+  x1849$perc_lambeth54 <- 0
+  x1854$perc_lambeth54 <- x1$perc_lambeth_adj
+  x1849$perc_southwark <- x1$perc_southwark_adj
+  x1854$perc_southwark <- x1$perc_southwark_adj
+  # Also put in the by-supplier population, but it will only be for 1854 (put in NA for 1849)
+  x1849$pop_other <- NA  # xxx
+  x1854$pop_other <- x1$pop_other_adj
+  x1849$pop_lambeth <- NA
+  x1854$pop_lambeth <- x1$pop_lambeth_adj
+  x1849$pop_lambeth54 <- NA
+  x1854$pop_lambeth54 <- x1$pop_lambeth_adj
+  x1849$pop_southwark <- NA
+  x1854$pop_southwark <- x1$pop_southwark_adj
+  
+  # population per house seems to come in as factor - convert to numeric
+  x1849$pop_per_house <- as.numeric(as.character(tableI_1856$pop_per_house[1:x2]))
+  x1854$pop_per_house <- as.numeric(as.character(tableI_1856$pop_per_house[1:x2]))
+  # elevation
+  x1849$elevation <- x1$elevation
+  x1854$elevation <- x1$elevation
+  
+  # Number of weeks for the epidemics
+  #  1849: From Vinten-Johanssen: "The start of the epidemic is generally given as the week ending 26 May, 
+  #        and the end in November, between the 10th and the 24th (24-26 weeks)."
+  #  1854: p. 89 of OMCC2, Table XII is through week ending 21 October, 15 weeks
+  #        but note that 1856 Table VI is 17 weeks (so higher counts)
+  
+  x1849$weeks <- 1
+  x1854$weeks <- 1
+  x1849$popepidemic <- x1849$population * x1849$weeks
+  x1854$popepidemic <- x1854$population * x1854$weeks
+  
+  
+  # -------------
+  # Now for "Direct" observations, with deaths by supplier for first 7 weeks of 1854
+  # Also stack data for:
+  #   1849 - full epidemic, combined all sources
+  #          deaths Table XII, population Table VIII
+  #   1854 - first 7 weeks, split by supplier (Southwark & Vauxhall, Lambeth, Other)
+  #          deaths Table VIII, population 1856 Table VI
+  #   1854 - last 8 weeks, combined all sources
+  #          deaths Table XII minus VIII, population Table VIII
+  
+  # Start with x1854 as the "template" and then fill (overwrite) the population and deaths
+  # First make new variable "year_split1st7" which splits 1854 into "1854" and "1854late" to allow 
+  #   time effect for first and 2nd part of 1854 epidemic
+  x1849$year_split1st7 <- x1849$year
+  x1849$year_split1st4 <- x1849$year
+  x1854$year_split1st7 <- x1854$year
+  x1854$year_split1st4 <- x1854$year
+  x1854VIII_southwark <- x1854
+  x1854VIII_southwark$year_split1st7 <- "1854early"
+  x1854VIII_southwark$year_split1st4 <- "1854_2nd3"
+  x1854VIII_southwark$weeks <- 7/15
+  x1854VIII_southwark$deaths <- x1$deathsSouthwark.7wks
+  x1854VIII_southwark$population <- x1854VIII_southwark$population * x1854VIII_southwark$perc_southwark
+  x1854VIII_southwark$rate <- 10000 * x1854VIII_southwark$deaths / x1854VIII_southwark$population
+  x1854VIII_southwark$perc_lambeth <- 0
+  x1854VIII_southwark$perc_lambeth54 <- 0
+  x1854VIII_southwark$perc_other <- 0
+  x1854VIII_southwark$perc_southwark <- 1
+  x1854VIII_southwark$subDistrict_1854 <- x1854$subDistrict
+  x1854VIII_southwark$popepidemic <- x1854VIII_southwark$population * x1854VIII_southwark$weeks
+  
+  x1854VIII_lambeth <- x1854
+  x1854VIII_lambeth$year_split1st7 <- "1854early"
+  x1854VIII_lambeth$year_split1st4 <- "1854_2nd3"
+  x1854VIII_lambeth$weeks <- 7/15
+  x1854VIII_lambeth$deaths <- x1$deathsLambeth.7wks
+  x1854VIII_lambeth$population <- x1854VIII_lambeth$population * x1854VIII_lambeth$perc_lambeth
+  x1854VIII_lambeth$rate <- 10000 * x1854VIII_lambeth$deaths / pmax(1,x1854VIII_lambeth$population)
+  x1854VIII_lambeth$perc_lambeth <- 1
+  x1854VIII_lambeth$perc_lambeth54 <- 1
+  x1854VIII_lambeth$perc_other <- 0
+  x1854VIII_lambeth$perc_southwark <- 0
+  x1854VIII_lambeth$subDistrict_1854 <- x1854$subDistrict
+  x1854VIII_lambeth$popepidemic <- x1854VIII_lambeth$population * x1854VIII_lambeth$weeks
+  
+  x1854VIII_other <- x1854
+  x1854VIII_other$year_split1st7 <- "1854early"
+  x1854VIII_other$year_split1st4 <- "1854_2nd3"
+  x1854VIII_other$weeks <- 7/15
+  x1854VIII_other$deaths <- x1$deathsPump.7wks + x1$deathThames.7wks
+  x1854VIII_other$population <- x1854VIII_other$population * x1854VIII_other$perc_other
+  x1854VIII_other$rate <- 10000 * x1854VIII_other$deaths / pmax(1,x1854VIII_other$population)
+  x1854VIII_other$perc_lambeth <- 0
+  x1854VIII_other$perc_lambeth54 <- 0
+  x1854VIII_other$perc_other <- 1
+  x1854VIII_other$perc_southwark <- 0
+  x1854VIII_other$popepidemic <- x1854VIII_other$population * x1854VIII_other$weeks
+  x1854VIII_other$subDistrict_1854 <- x1854$subDistrict
+  
+  x1854_last8 <- x1854
+  x1854_last8$year_split1st7 <- "1854late"
+  x1854_last8$year_split1st4 <- "1854_last8"
+  x1854_last8$weeks <- 8/15
+  x1854_last8$deaths <- x1$deaths1854 - x1$deathsOverall.7wks
+  x1854_last8$rate <- 10000 * x1854_last8$deaths / pmax(1,x1854_last8$population)
+  x1854_last8$popepidemic <- x1854_last8$population * x1854_last8$weeks
+  x1854_last8$subDistrict_1854 <- x1854$subDistrict
+  
+  
+  
+  # Now create data for first 4 weeks (Table VII), next 3 weeks (Table VIII - Table VII), and last 8 weeks (all suppliers combined)
+  # Start with the already-created "x1854VIII_" arrays
+  x1854VII_southwark = x1854VIII_southwark
+  x1854VII_lambeth = x1854VIII_lambeth
+  x1854VII_other = x1854VIII_other
+  x1854VIII4wk_southwark = x1854VIII_southwark
+  x1854VIII4wk_lambeth = x1854VIII_lambeth
+  x1854VIII4wk_other = x1854VIII_other
+  # We only need to overwrite the weeks and deaths, AND THE RATES
+  x1854VII_southwark$weeks <- 3/15
+  x1854VII_southwark$deaths <- x1$deathsSouthwark.first4wks
+  x1854VII_southwark$rate <- 10000 * x1854VII_southwark$deaths / pmax(1,x1854VII_southwark$population)
+  x1854VII_southwark$year_split1st4 <- "1854_1st4"
+  x1854VII_lambeth$weeks <- 3/15
+  x1854VII_lambeth$deaths <- x1$deathsLambeth.first4wks
+  x1854VII_lambeth$rate <- 10000 * x1854VII_lambeth$deaths / pmax(1,x1854VII_lambeth$population)
+  x1854VII_lambeth$year_split1st4 <- "1854_1st4"
+  x1854VII_other$weeks <- 3/15
+  x1854VII_other$deaths <- x1$deathsPump.first4wks + x1$deathThames.first4wks
+  x1854VII_other$rate <- 10000 * x1854VII_other$deaths / pmax(1,x1854VII_other$population)
+  x1854VII_other$year_split1st4 <- "1854_1st4"
+  # And update the deaths for x1854VIII to be "next 4 weeks" (first 7 - first 3)
+  x1854VIII4wk_southwark$weeks <- 4/15
+  x1854VIII4wk_southwark$deaths <- x1854VIII_southwark$deaths - x1$deathsSouthwark.first4wks
+  x1854VIII4wk_southwark$rate <- 10000 * x1854VIII4wk_southwark$deaths / pmax(1,x1854VIII4wk_southwark$population)
+  x1854VIII4wk_lambeth$weeks <- 4/15
+  x1854VIII4wk_lambeth$deaths <- x1854VIII_lambeth$deaths - x1$deathsLambeth.first4wks
+  x1854VIII4wk_lambeth$rate <- 10000 * x1854VIII4wk_lambeth$deaths / pmax(1,x1854VIII4wk_lambeth$population)
+  x1854VIII4wk_other$weeks <- 4/15
+  x1854VIII4wk_other$deaths <- x1854VIII_other$deaths - (x1$deathsPump.first4wks + x1$deathThames.first4wks)
+  x1854VIII4wk_other$rate <- 10000 * x1854VIII4wk_other$deaths / pmax(1,x1854VIII4wk_other$population)
+  
+  
+  x1854VIII_lambeth <- x1854VIII_lambeth[x1854VIII_lambeth$supplier == "SouthwarkVauxhall_Lambeth",]
+  x1854VIII_other <- x1854VIII_other[!x1854VIII_other$population == 0,]
+  x1854VIII_other <- x1854VIII_other[!is.na(x1854VIII_other$population),]
+  x1854VII_lambeth <- x1854VII_lambeth[x1854VII_lambeth$supplier == "SouthwarkVauxhall_Lambeth",]
+  x1854VII_other <- x1854VII_other[!x1854VII_other$population == 0,]
+  x1854VII_other <- x1854VII_other[!is.na(x1854VII_other$population),]
+  x1854VIII4wk_lambeth <- x1854VIII4wk_lambeth[x1854VIII4wk_lambeth$supplier == "SouthwarkVauxhall_Lambeth",]
+  x1854VIII4wk_other <- x1854VIII4wk_other[!x1854VIII4wk_other$population == 0,]
+  x1854VIII4wk_other <- x1854VIII4wk_other[!is.na(x1854VIII4wk_other$population),]
+  
+  
+  # All data stacked. These are data from 1855 Table VIII for first 7 weeks (mixed populations) and last 8 weeks (all supplier combined)
+  # From this one can extract various regression data
+  xdata_combined <- rbind(x1849,x1854,x1854VIII_lambeth,x1854VIII_other,x1854VIII_southwark,x1854_last8)
+  xdata_combined$early1854Dummy <- xdata_combined$year_split1st7 == "1854early"
+
+  # Stack the 1849, 1854 1st 3wks, 1854 next 4 wks, 1854 last 8 wks
+  xdata_combined_1st4 <- rbind(x1849,x1854,x1854VII_lambeth,x1854VII_other,x1854VII_southwark,x1854VIII4wk_lambeth,x1854VIII4wk_other,x1854VIII4wk_southwark,x1854_last8)
+
+  list(xdata_combined,xdata_combined_1st4)
+}
+
+
+cr_data_combined <- function(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj=3,population_1851=0,tableVIdeaths=0) {
+
+  x1 <- cr_data_internal(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj,population_1851,tableVIdeaths)
+  xdata_combined <- x1[[1]]
+  xdata_combined
+}
+
+
+cr_data_combined_1st4 <- function(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj=3,population_1851=0,tableVIdeaths=0) {
+  
+    x1 <- cr_data_internal(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj,population_1851,tableVIdeaths)
+  xdata_combined_1st4 <- x1[[2]]
+  xdata_combined_1st4
+}
+  
+
+
+```
+
+
+```{r}
+cr_regdata <- function(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj=0,population_1851=1,tableVIdeaths=0,excludeLambethOnly=1) {
+  # Create regression data for simple DiD using 1855 Table XII (and population 1851 from Table VIII)
+  xdata_combined <- cr_data_combined(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj,population_1851,tableVIdeaths)
+  x1 <- xdata_combined
+  # Default is to Select the "First 12" and "Next 16" subdistricts - i.e. exclude the "Lambeth Co only" subdistricts
+  if(excludeLambethOnly == 1) {
+    x1 <- subset(xdata_combined,supplier == "SouthwarkVauxhall" | supplier == "SouthwarkVauxhall_Lambeth")
+  }
+  # regdata is for DiD with 1849 & 1854 combined data only
+  regdata <- subset(x1,year_split1st7 == "1849" | year_split1st7 == "1854")
+  regdata
+}
+
+cr_regdata_mixedDiD7wks <- function(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj,population_1851,tableVIdeaths) {
+  # Regression data for DiD separating out randomized by-supplier for 1st 7weeks of 1854
+  xdata_combined <- cr_data_combined(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj,population_1851,tableVIdeaths)
+  x1 <- subset(xdata_combined,supplier == "SouthwarkVauxhall" | supplier == "SouthwarkVauxhall_Lambeth")
+  # regdata is for DiD with 1849 & 1854 combined data only
+  regdata <- subset(x1,year_split1st7 == "1849" | year_split1st7 == "1854")
+  # regdata_mixedDiD7wks is for DiD with 1849 combined, 1854 early direct comparison, 1854 late combined
+  regdata_mixedDiD7wks <- subset(x1,year_split1st7 != "1854" )
+  regdata_mixedDiD7wks_xOther <- subset(regdata_mixedDiD7wks,(perc_other != 1.0))
+  list(regdata_misdDiD7wks, regdata_mixedDiD7wks_xOther)
+}
+
+
+
+cr_regdata1855VIII <- function(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj,population_1851,tableVIdeaths) {
+  # Regression data for 1855 by-supplier data from Table VIII (1st 7 weeks)
+  xdata_combined <- cr_data_combined(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj,population_1851,tableVIdeaths)
+  x1 <- subset(xdata_combined,supplier == "SouthwarkVauxhall" | supplier == "SouthwarkVauxhall_Lambeth")
+  #  regdata1855VIIjoint: 1854 early (first 7 weeks) direct comparison for S&V and Lambeth only (excluding "other")
+  #                      and for jointly-supplied "Next 16" subdistricts
+  #  regdata1855VIIIboth: 1854 early (first 7 weeks) direct comparison for S&V and Lambeth only (excluding "other")
+  #                      for all 28 subdistrict ("first 12" supplied only by S&V) and jointly-supplied "Next 16" subdistricts
+  regdata1855VIIIboth <- subset(x1,year_split1st7 == "1854early" )
+  regdata1855VIIIboth <- subset(regdata1855VIIIboth,perc_other < 1.0 )
+  regdata1855VIIIjoint <- subset(regdata1855VIIIboth,supplier == "SouthwarkVauxhall_Lambeth")
+  regdata1855VIIIboth[regdata1855VIIIboth$perc_southwark ==1,"supplier"] = "Southwark"
+  regdata1855VIIIboth[regdata1855VIIIboth$perc_lambeth ==1,"supplier"] = "xLambeth"
+  regdata1855VIIIjoint[regdata1855VIIIjoint$perc_southwark ==1,"supplier"] = "Southwark"
+  regdata1855VIIIjoint[regdata1855VIIIjoint$perc_lambeth ==1,"supplier"] = "xLambeth"
+  list(regdata1855VIIIboth, regdata1855VIIIjoint)
+}
+
+cr_regdata_mixedDiD4wks <- function(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj,population_1851,tableVIdeaths) {
+  # Regression data for combined DiD & Randomization
+  # Select the "First 12" and "Next 16" subdistricts - i.e. exclude the "Lambeth Co only" subdistricts
+  xdata_combined_1st4 <- cr_data_combined_1st4(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj,population_1851,tableVIdeaths)
+  x1 <- subset(xdata_combined_1st4,supplier == "SouthwarkVauxhall" | supplier == "SouthwarkVauxhall_Lambeth")
+  # regdata_mixedDiD1st4wks is for DiD with 1849 combined, 1854 1st 3wks, next 4wks (separate by S&V vs Lambeth),  final 8wks combined
+  regdata_mixedDiD1st4wks <- subset(x1,year_split1st7 != "1854" )
+  regdata_mixedDiD1st4wks_xOther <- subset(regdata_mixedDiD1st4wks,(perc_other != 1.0))
+  list(regdata_mixedDiD1st4wks,regdata_mixedDiD1st4wks_xOther)
+}
+
+cr_data_sidebyside <- function(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj=0,population_1851=1,tableVIdeaths=0) {
+    xdata_combined <- cr_data_combined(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj,population_1851,tableVIdeaths)
+  xoutput <- xdata_combined[xdata_combined$year_split1st7 == "1854" ,c("district","subDistrict","pop1851","supplier","lambethdegree","pop_southwark","pop_lambeth","pop_other","perc_southwark","perc_lambeth","perc_other","pop_per_house")]
+  xoutput$deaths1849 <- xdata_combined[xdata_combined$year_split1st7 == "1849",c("deaths")]
+  xoutput$rate1849 <- xdata_combined[xdata_combined$year_split1st7 == "1849",c("rate")]
+  xoutput$pop1849 <- xdata_combined[xdata_combined$year_split1st7 == "1849",c("population")]
+  xoutput$deaths1854 <- xdata_combined[xdata_combined$year_split1st7 == "1854",c("deaths")]
+  xoutput$rate1854 <- xdata_combined[xdata_combined$year_split1st7 == "1854",c("rate")]
+  xoutput$pop1854 <- xdata_combined[xdata_combined$year_split1st7 == "1854",c("population")]
+  xoutput <- inner_join(xoutput, tableviii[tableviii$district != "na",c("subDistrict","deathsOverall","deathsSouthwark","deathsLambeth","deathsPump","deathThames","deathsUnascertained")], by = "subDistrict")
+  #yyy
+#  xoutput <- xoutput[,  c("pop1851","deathsOverall","deathsSouthwark","deathsLambeth","deathsPump","deathThames","deaths1849","deaths1854","perc_southwark","perc_lambeth","perc_other")]
+  xoutput
+}
+
+```
+
+
+
+Code to sum up populations by regions for the different adjustments to population (BUT only for the 28 subdistricts "First 12" and "Next 16"):
+
++ Adjustment (0), No adjustments (directly from 1856 Table VI)
++ Adjustment (1), zeroing Lambeth population in Vauxhall-only subdistricts
++ Adjustment (2), upwards so subdistrict sums (from Table VI) match district reports (Table V)
++ Adjustment (3), adjusting down by-supplier population if combined greater than 1854
+
+```{r, include=FALSE, eval=FALSE}
+
+
+cr_popcom <- function(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath) {
+  # Creates matrix comparing different sums (for "first 12" and "next 16") of by-supplier population for 1854
+  # Brute force, creating multiple version of "xdata_combined" for different combinations of "population_adj" and
+  #   "population_1851"
+  
+  # tableI_1856,tablevii,tableviii,tableV_1856,tableSimonIII,tableSimonIII_StNoDeath,population_adj=3,population_1851=0)
+  
+  xpopcom <- matrix(0,nrow=4,ncol=6)
+  rownames(xpopcom) <- c("Adj0","Adj1","Adj2","Adj3")
+  colnames(xpopcom) <- c("S&VCustomers","Lambeth","Combined","1851S&V","1851Lambeth","1851Combined")
+  
+  tableVIdeaths <- 0
+  population_1851 <- 0
+  for (i in 0:3) {
+    population_adj <- i
+    xdata_combined <- cr_data_combined(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj,population_1851,tableVIdeaths)
+    xpopcom[i+1,2] <- sum(xdata_combined$pop_lambeth[xdata_combined$year_split1st7 == "1854" & xdata_combined$supplier != "Lambeth"])
+    xpopcom[i+1,1] <- sum(xdata_combined$pop_southwark[xdata_combined$year_split1st7 == "1854" & xdata_combined$supplier != "Lambeth"])
+  }
+  population_1851 <- 1
+  for (i in 0:3) {
+    population_adj <- i
+    xdata_combined <- cr_data_combined(tableI_1856,tablevii,tableviii,tablexii,tableV_1856,tableVI_1856,tableSimonIII,tableSimonIII_StNoDeath,TableGROElevation,population_adj,population_1851,tableVIdeaths)
+    xpopcom[i+1,5] <- sum(xdata_combined$pop_lambeth[xdata_combined$year_split1st7 == "1854" & xdata_combined$supplier != "Lambeth"])
+    xpopcom[i+1,4] <- sum(xdata_combined$pop_southwark[xdata_combined$year_split1st7 == "1854" & xdata_combined$supplier != "Lambeth"])
+  }
+
+  xpopcom[,3] <- xpopcom[,1] + xpopcom[,2]
+  xpopcom[,6] <- xpopcom[,4] + xpopcom[,5]
+  xpopcom <- as.data.frame(xpopcom)
+  
+  xpopcom
+}  
+
+```
+

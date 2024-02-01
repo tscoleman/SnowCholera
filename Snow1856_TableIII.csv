@@ -1,0 +1,23 @@
+﻿"John Snow 1856, ""Cholera and the water supply in the south district of London in 1854"" from Frost reprint of Snow papers (appendix) and from web pictures http://www.ph.ucla.edu/epi/snow/cholerawatersouthlondon.html",,,,,,,,,,,,,,
+Table III,,,,,,,,,,,,,,
+"Transcribed by Thomas Coleman, University of Chicago Harris School of Public Policy",,,,,,,,,,,,,,
+"Showing the results of the whole Inquiry during the First Seven Wseeks of the Epidemic, arranged in Districts",,,,,,,,,,,,,,
+,,,,,,,,,,,,,,
+,,,,,Southwark & Vauxhall,,Lambeth,,Deaths from water supply,,,,,
+Registration Districts,,Number of inhabitated houses in 1851,Population in 1851,Estimated population per house,No. of houses,Estimated population,No. of houses,Estimated population,Southwark and Vauxhall Co,Lambeth Co,"Thames, Canals, …",Pump-wells,Not ascertained,Deaths in first seven weeks of epidemic
+district,districtID,houses1851,pop1851,density_Snow,houses_southwark,pop_southwark,houses_lambeth,pop_lambeth,deaths_southwark,deaths_lambeth,deaths_thames,deaths_pumps,deaths_unascertained,deaths_total
+"St. Saviour, Southwark",1,4600,35731,7.8,2631,19617,1689,14201,126,13,10,0,1,150
+"St. Olave, Southwark",2,2360,19375,8.2,2193,18638,0,0,91,0,8,0,5,104
+Bermondsey,3,7007,48128,6.9,8402,57884,268,1785,266,0,25,0,0,291
+"St. George, Southwark",4,6992,51824,7.4,3419,25039,3183,23712,134,20,0,0,3,157
+Newington,5,10458,64816,6.2,5224,31940,5473,33531,155,11,0,1,2,169
+Lambeth,6,20447,139325,6.8,8077,54982,11763,83786,176,43,8,7,9,243
+Wandsworth,7,8276,50764,6.1,3028,18390,618,3870,62,1,16,17,0,96
+Camberwell,8,9412,54667,5.8,4005,23472,1835,10478,185,9,0,2,1,197
+Rotherhithe,9,2792,17805,6.4,2336,14951,0,0,68,0,35,0,0,103
+Lewisham (Sub-district of Sydenham),10,801,4501,5.6,0,0,,,0,1,0,2,1,4
+Not identified,,,,6.6,411,2712,25,165,0,0,0,0,0,0
+TOTAL,,73145,486936,6.7,39726,267625,24854,171528,1263,98,102,29,22,1514
+#Sum,,73145,486936,,39726,267625,24854,171528,1263,98,102,29,22,1514
+#Check,,ok,ok,,ok,ok,ok,ok,ok,ok,ok,ok,ok,ok
+#Check,,,,,,0,0,3,0,0,0,0,0,0
